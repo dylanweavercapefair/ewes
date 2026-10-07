@@ -1,0 +1,75 @@
+# EWS Verbatim Chat Log & Request Transcript
+**Project:** Equestrian Wasteland Sim (EWS)  
+**Session Log:** October 6, 2026
+
+---
+
+## Chronological Chat Log & Prompts
+
+### Message 1
+> **User:** Revolver is back. Has only settings button. Not pulling from context menus. Screen even darker shade of black now.  
+> **Summary of Work:** Fixed context menu binding so revolver populates dynamically based on active mode (LIVE, SELECT, EDIT, BUILD, MODEL, ANIMATE) and restored screen background brightness.
+
+---
+
+### Message 2
+> **User:** Game works, thanks, I can’t move revolver past half of screen, it’s locked it at bottom half  
+> **Summary of Work:** Fixed revolver movement boundaries (`setRevPos`) allowing 360-degree translation across top, bottom, left, and right viewport edges.
+
+---
+
+### Message 3
+> **User:** Thank you. By default can you organize the revolver on isolated menus like edit so there are buttons in the second row, and ensure they do not over lap when the rows expand. Like if you draw it out, but don’t factor the circumference if the circles in the math, then you will for sure overlap if it gets too close. If there I like it nice and close, but I have a bone inside of a door xD it looks really good gem, really good.  
+> **Summary of Work:** Reorganized revolver architecture into multi-ring dual-row layout with Layer 1 (inner ring), Layer 2 (outer ring), and Layer 3 (expansion ring for subfolders). Implemented chord distance formulas $C = 2 R \sin(\pi / N)$ to ensure zero overlap.
+
+---
+
+### Message 4
+> **User:** Thanks, that mother is waaaaaaay to far out though, scale bullet buttons by 50% and bing the second layer as as close as possible when making a perfect circle around it with other circles (in theory) without touching.  
+> **Summary of Work:** Scaled bullet sizes down by 50% (hub to 48px, inner bullets to 24px, outer to 21px) and packed them with osculating circle clearance.
+
+---
+
+### Message 5
+> **User:** Scale them down! Not up  
+> **Summary of Work:** Scaled down all remaining radius offsets and container bounding box from 560px to 320px for a lightweight footprint.
+
+---
+
+### Message 6
+> **User:** Thanks, maybe we can just add sliders in it’s setting in the future xD thank you  
+> **Summary of Work:** Added live interactive sliders into the `⚙️` settings sheet (Scale: 50%-150%, Ring Gap: 0-24px, Bullet Size: 16-44px) with real-time viewport updates and `localStorage` saving.
+
+---
+
+### Message 7
+> **User:** I can’t see the text on the buttons?  
+> **Summary of Work:** Restored bold high-contrast text label spans (`.bullet-lbl`) stacked beneath emoji icons with high readability.
+
+---
+
+### Message 8
+> **User:** Revolver spawns of screen so I can’t see or use it  
+> **Summary of Work:** Fixed container coordinate system to calculate from viewport center rather than top-left corner, ensuring it always spawns in-bounds on any screen resolution.
+
+---
+
+### Message 9
+> **User:** Fuck me man. Okay. The move rotate and scales in every build menu need to not be sliders. Those are gizmos that set over the selected object. When I go into build mode in isolation I should be able to take my finger, tap the model, it selects, it draws an selection outline, no bounding box, but it allows me to see the joint layout. The joints are not huge nodes. I’m on mobile, they are small with lines drawing them, that way I can get right to it.  
+> **User:** Those gizmos are done and in game  
+> **Summary of Work:** 
+> 1. Removed slider sheets from `MOVE`, `ROTATE`, `SCALE`, and `SIZE` buttons in all build menus and revolver.
+> 2. Implemented real-time interactive 3D Transform Gizmos:
+>    - 3-axis translation arrows + camera-plane center grab.
+>    - 3-axis rotation toruses.
+>    - 3-axis stretch box handles + uniform scale cube.
+> 3. Enabled direct mobile tap picking for 3D body nodes and skeletal joints.
+> 4. Implemented organic form-fitting surface contour outline (`THREE.BackSide` scale expansion) with zero bounding boxes.
+> 5. Rendered a sleek skeletal joint rig with small yellow nodes and clean green connecting lines.
+
+---
+
+### Message 10
+> **User:** So for now do not change files okay? I have a couple questions.  
+> **User:** So in the original pony math that makes the model. That whole pony avatar. Originally when we had done it went like this. (I’m not a coder so I’m not speaking in literal terms) Identify coordinates, spawn sphere, then when linked to other node, math is used to average the appearance of geometry across the shape. And that isssss amazing. But then. We were able to smooth the joints somehow. And then…. The thing that I liked. We were able to do that a step further, and the math ran some sort of… smoothing, maybe. But it took that node model, and it made it look like it was the same mesh shape. Like if I took the arm and starch it, you don’t see seams, SEAMS, it removed all the seems. Any idea why that’s gone, what it was, how we can get it back, and if there are better options or tech that could help  
+> **Summary of Response:** Explained the difference between independent `THREE.Mesh` objects and continuous implicit surface blending (Smooth Minimum `smin`, Marching Cubes, and Vertex Normal Welding). Outlined the 3 best paths to restore seamless organic skinning for 60 FPS mobile.
