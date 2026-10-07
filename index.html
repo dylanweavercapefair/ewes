@@ -9,20 +9,6 @@
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <meta name="theme-color" content="#0c1410">
 <title>Equestrian Wasteland Sim (EWS) — 3D Client</title>
-<script>
-window.simSpeed = 1;
-window.isWalking = false;
-window.camMode = 'iso';
-window.bodyMeshes = [];
-window._ewsBootReady = false;
-window._ewsBootError = null;
-window.onerror = function(msg, url, line) {
-  if (typeof window._ewsShowBootError === 'function') {
-    window._ewsShowBootError(String(msg), line || 0);
-  }
-};
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 :root {
   --m: 12px;
@@ -45,137 +31,100 @@ html, body {
   user-select: none; -webkit-user-select: none;
 }
 #vp { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; }
-
-.gl {
-  background: var(--gl);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  backdrop-filter: blur(16px) saturate(1.4);
-  border: 1px solid var(--gb);
+.gl { background: var(--gl); -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4); border: 1px solid var(--gb); }
+.orb {
+  position: fixed; width: 48px; height: 48px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 17px; z-index: 20; color: var(--fg); cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5); line-height: 1; user-select: none;
 }
-
-.orb { position: fixed; width: 48px; height: 48px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 17px; z-index: 20; color: var(--fg); cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.5); line-height: 1; user-select: none; }
 .orb.on { border-color: var(--ac); box-shadow: 0 0 0 2px var(--ac) inset, 0 0 14px rgba(127,194,165,0.4); }
-.orb .orb-lbl { font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 1.5px; opacity: 0.92; pointer-events: none; color: #bfe8d4; }
-
+.orb .orb-lbl {
+  font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  margin-top: 1.5px; opacity: 0.92; pointer-events: none; color: #bfe8d4;
+}
+#engine-modes { position: fixed; left: var(--l); top: var(--t); display: flex; flex-direction: column; gap: 6px; z-index: 20; }
 #boot-err {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(90vw, 560px);
-  max-height: 22vh;
-  overflow: auto;
-  background: rgba(120, 22, 22, 0.94);
-  color: #fff;
-  padding: 12px 14px 10px 14px;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 12px;
-  z-index: 99999;
-  font: 13px system-ui;
-  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
-  display: none;
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+  width: min(90vw, 560px); max-height: 22vh; overflow: auto;
+  background: rgba(120, 22, 22, 0.94); color: #fff; padding: 12px 14px 10px 14px;
+  border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; z-index: 99999;
+  font: 13px system-ui; box-shadow: 0 12px 28px rgba(0,0,0,0.35); display: none;
 }
 #boot-err.show { display: block; }
 #boot-err-close {
   position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: white; font-size: 16px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: white; font-size: 16px; cursor: pointer; padding: 0;
 }
 #boot-err b { display: block; margin-right: 30px; }
 #boot-err small { opacity: 0.9; }
+#ver-badge {
+  position: fixed; right: var(--r); bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  padding: 3px 8px; border-radius: 8px; font-size: 10px; font-weight: 800;
+  letter-spacing: 0.5px; opacity: 0.85; z-index: 20; color: var(--ac); pointer-events: none;
+}
 </style>
 </head>
 <body data-es="LIVE">
 <canvas id="vp"></canvas>
+<div id="engine-modes">
+  <button class="orb gl" id="btn-mode-select" title="Select & Inspect"><span>🎯</span><span class="orb-lbl">SELECT</span></button>
+  <button class="orb gl" id="btn-mode-edit" title="Edit Transforms & Nodes"><span>✏️</span><span class="orb-lbl">EDIT</span></button>
+  <button class="orb gl" id="btn-mode-build" title="Build & Paint"><span>🔨</span><span class="orb-lbl">BUILD</span></button>
+  <button class="orb gl" id="btn-mode-anim" title="Animate & Staging"><span>🎬</span><span class="orb-lbl">ANIM</span></button>
+</div>
+<div id="ver-badge" class="gl">Build Clean</div>
 <div id="boot-err" aria-live="polite">
   <button id="boot-err-close" aria-label="Dismiss startup error">×</button>
   <b>Startup Alert</b>
-  <div id="boot-err-text">Loading</div>
+  <div id="boot-err-text">Initializing...</div>
   <small>Wi‑Fi is required to load Three.js r128.</small>
 </div>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function() {
+  const $ = id => document.getElementById(id);
   function showBootError(msg, line) {
-    var box = document.getElementById('boot-err');
-    var text = document.getElementById('boot-err-text');
+    const box = $('boot-err');
+    const text = $('boot-err-text');
     if (!box || !text) return;
-    text.innerHTML = '<div><strong>Script error:</strong> ' + String(msg) + ' (line ' + line + ')</div>';
+    text.innerHTML = '<div><strong>Script error:</strong> ' + String(msg) + (line ? ' (line ' + line + ')' : '') + '</div>';
     box.classList.add('show');
   }
   window._ewsShowBootError = showBootError;
-  document.getElementById('boot-err-close').addEventListener('click', function() {
-    document.getElementById('boot-err').classList.remove('show');
+  $('boot-err-close').addEventListener('click', function() {
+    $('boot-err').classList.remove('show');
   });
-})();
-
-window.addEventListener('load', function() {
-  if (typeof THREE === 'undefined') {
-    window._ewsShowBootError('THREE is not defined', 0);
-    return;
-  }
-  window._ewsBootReady = true;
-  document.getElementById('boot-err').classList.remove('show');
-});
-</script>
-
-<script>
-(function() {
-  const bootWait = setInterval(function() {
-    if (typeof THREE === 'undefined') return;
-    clearInterval(bootWait);
-    if (!window.__EWS_BOOTSTRAPPED) {
-      window.__EWS_BOOTSTRAPPED = true;
-      try {
-        const stage = document.createElement('script');
-        stage.textContent = `
-          const $ = id => document.getElementById(id);
-          const cv = $('vp');
-          const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
-          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-          renderer.setSize(window.innerWidth, window.innerHeight);
-          renderer.localClippingEnabled = true;
-          renderer.shadowMap.enabled = true;
-          const scene = new THREE.Scene();
-          scene.background = new THREE.Color(0x18261e);
-          const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 150);
-          let camMode = 'iso';
-          let camTarget = new THREE.Vector3(0, 1.05, 0);
-          let camAngle = { yaw: Math.PI * 0.75, pitch: 0.45, dist: 4.8 };
-          const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-          scene.add(ambient);
-          const hemi = new THREE.HemisphereLight(0xdcf2e4, 0x223628, 0.65);
-          scene.add(hemi);
-          const dir = new THREE.DirectionalLight(0xfff4d6, 1.1);
-          dir.position.set(5, 8, 4);
-          scene.add(dir);
-          function updateCameraPosition() {
-            const D = camAngle.dist;
-            camera.position.set(
-              camTarget.x + D * Math.cos(camAngle.pitch) * Math.sin(camAngle.yaw),
-              camTarget.y + D * Math.sin(camAngle.pitch),
-              camTarget.z + D * Math.cos(camAngle.pitch) * Math.cos(camAngle.yaw)
-            );
-            camera.lookAt(camTarget);
-          }
-          updateCameraPosition();
-          const geometry = new THREE.SphereGeometry(0.55, 24, 20);
-          const material = new THREE.MeshStandardMaterial({ color: 0xe9e1d9, roughness: 0.8, metalness: 0.05 });
-          const body = new THREE.Mesh(geometry, material);
-          body.position.y = 0.9;
-          scene.add(body);
-          function renderLoop() {
-            requestAnimationFrame(renderLoop);
-            body.rotation.y += 0.006;
-            renderer.render(scene, camera);
-          }
-          renderLoop();
-        `;
-        document.body.appendChild(stage);
-      } catch (e) {
-        window._ewsShowBootError(e && e.message ? e.message : 'Unknown boot error', 0);
-      }
+  window.addEventListener('load', function() {
+    if (typeof THREE === 'undefined') {
+      showBootError('THREE is not defined', 0);
+      return;
     }
-  }, 50);
+    try {
+      const renderer = new THREE.WebGLRenderer({ canvas: $('vp'), antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x18261e);
+      const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 150);
+      camera.position.set(2.5, 1.5, 3.5);
+      camera.lookAt(0, 1, 0);
+      const amb = new THREE.AmbientLight(0xffffff, 0.6); scene.add(amb);
+      const dir = new THREE.DirectionalLight(0xfff4d6, 0.8); dir.position.set(5, 8, 4); scene.add(dir);
+      const bodyGeo = new THREE.SphereGeometry(0.5, 24, 20);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd0c0a8, roughness: 0.7 });
+      const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat); bodyMesh.position.y = 0.9; scene.add(bodyMesh);
+      const grid = new THREE.GridHelper(20, 20, 0x2a4434, 0x1c2e23); grid.position.y = 0.005; scene.add(grid);
+      function render() { requestAnimationFrame(render); bodyMesh.rotation.y += 0.005; renderer.render(scene, camera); }
+      render();
+      $('boot-err').classList.remove('show');
+    } catch (e) {
+      showBootError(e && e.message ? e.message : 'Unknown error', 0);
+    }
+  });
+  setTimeout(function() {
+    if (typeof THREE === 'undefined') showBootError('THREE.js CDN timeout', 0);
+  }, 5000);
 })();
 </script>
 </body>
