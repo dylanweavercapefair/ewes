@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""
+EWS Hallucination Pattern Scanner & Architecture Scrub Tool (EWS-SCRUB/1)
+Isolates mathematical and structural signatures that trigger LLM regressions:
+  1. Desktop Bar Syndrome: #hud, #qb, #dock (violates zero-bar Layout Law)
+  2. 2.5D Isometric Pixel Math: (x-y)*32, (x+y)*16 (violates True 3D WebGL mandate)
+  3. Legacy 2D Canvas Context: getContext('2d') on primary viewports
+  4. SVG Sphere Hull Viewports: <svg id="st"> (flat 2D projection)
+"""
+import sys
+import os
+import re
+
+PATTERNS = {
+    "BARS_SYNDROME": {
+        "regex": re.compile(r'(#qb\b|#hud\b|#dock\b|\.qb\b|\.dock\b)'),
+        "severity": "CRITICAL",
+        "description": "Desktop rectangular top/bottom bar CSS violating Master Shell Layout Law."
+    },
+    "ISO_2D_PIXEL_MATH": {
+        "regex": re.compile(r'\(x\s*-\s*y\)\s*\*\s*32|\(x\s*\+\s*y\)\s*\*\s*16'),
+        "severity": "HIGH",
+        "description": "Legacy 2:1 flat isometric coordinate projection equation."
+    },
+    "CANVAS_2D_VIEWPORT": {
+        "regex": re.compile(r'cv\.getContext\([\"\']2d[\"\']\)'),
+        "severity": "MEDIUM",
+        "description": "2D canvas context used for primary simulation viewport."
+    },
+    "SVG_CIRCLE_VIEWPORT": {
+        "regex": re.compile(r'<div id=[\"\']st[\"\']>\s*</div>|<svg id=[\"\']st[\"\']'),
+        "severity": "HIGH",
+        "description": "Legacy SVG circle blockout container."
+    }
+}
+
+EXCLUDED_DIRS = {'agent_sandbox', 'downloads', '.git', 'node_modules'}
+EXCLUDED_FILES = {'scrub_audit.py'}
+CANONICAL_MATH_FILES = {'pony_geometry_rig_math.js'} # Retained strictly for procedural math transfer
+CANONICAL_TRANSITION_FILES = {'Stable-Tec_Master_DevKit_Studio_FIXED_3.html', 'ST_SHELL_PROTOTYPE.html'}
+
+def scan_repository(target_dir='.'):
+    results = {}
+    for root, dirs, files in os.walk(target_dir):
+        dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+        for f in files:
+            if f in EXCLUDED_FILES:
+                continue
+            ext = os.path.splitext(f)[1]
+            if ext in ['.html', '.js', '.ts', '.py', '.md']:
+                path = os.path.normpath(os.path.join(root, f))
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='ignore') as fp:
+                        content = fp.read()
+                    file_matches = {}
+                    for p_id, p_info in PATTERNS.items():
+                        m = p_info["regex"].findall(content)
+                        if m:
+                            file_matches[p_id] = len(m)
+                    if file_matches:
+                        results[path] = file_matches
+                except Exception as e:
+                    pass
+    return results
+
+def cmd_scan(target_dir='.'):
+    print("=== EWS HALLUCINATION PATTERN AUDIT ===")
+    results = scan_repository(target_dir)
+    if not results:
+        print("PASS: Zero hallucination signatures detected in active repository.")
+        return True
+    
+    flagged = False
+    for path, matches in sorted(results.items()):
+        basename = os.path.basename(path)
+        is_math_rig = basename in CANONICAL_MATH_FILES
+        is_transition = basename in CANONICAL_TRANSITION_FILES
+        status_tag = ""
+        if is_math_rig:
+            status_tag = " [ALLOWED: PARAMETRIC MATH CORE]"
+        elif is_transition:
+            status_tag = " [TRANSITION WORKBENCH - TARGET FOR 3D SYNTHESIS]"
+            flagged = True
+        else:
+            status_tag = " [UNAUTHORIZED SUSPICIOUS FILE]"
+            flagged = True
+
+        print(f"\nFile: {path}{status_tag}")
+        for p_id, count in matches.items():
+            sev = PATTERNS[p_id]["severity"]
+            desc = PATTERNS[p_id]["description"]
+            print(f"  [{sev}] {p_id} ({count} occurrences): {desc}")
+    
+    print("\n-------------------------------------------------------------")
+    if flagged:
+        print("AUDIT SUMMARY: Transition workbench files contain legacy UI/math to be unified into Three.js zero-bar engine.")
+        return False
+    else:
+        print("HEALTHY: Repository clean of rogue hallucination vectors.")
+        return True
+
+if __name__ == '__main__':
+    target = sys.argv[1] if len(sys.argv) > 1 else '..'
+    cmd_scan(target)

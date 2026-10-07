@@ -1,0 +1,672 @@
+{
+  "schema": "stabletec.blockout/2",
+  "units": "1 = 32px; x fwd, y side, z up",
+  "view": "3d",
+  "space": "world",
+  "cls": "Stallion",
+  "name": "chibi_stallion_v2",
+  "migration_notes": [
+    "Derived from pony_geometry_rig_math.js Stallion preset SK(0.42, 0.37)",
+    "Chest radius expanded from 0.34 to 0.42 (broader torso)",
+    "Rear radius tapered from 0.36 to 0.37 (athletic stallion flank)",
+    "Legs stance adjusted for stallion muscularity"
+  ],
+  "nodes": [
+    {
+      "id": "head",
+      "type": "sphere",
+      "parent": "chest",
+      "pos": [
+        0.45,
+        0,
+        1.85
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.539,
+      "link": false,
+      "mirror": null,
+      "tags": [
+        "head"
+      ]
+    },
+    {
+      "id": "chest",
+      "type": "sphere",
+      "parent": null,
+      "pos": [
+        0.2,
+        0,
+        1
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.42,
+      "link": false,
+      "mirror": null,
+      "tags": [
+        "body"
+      ]
+    },
+    {
+      "id": "rear",
+      "type": "sphere",
+      "parent": "chest",
+      "pos": [
+        -0.165,
+        -0.03,
+        1.024
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.37,
+      "link": true,
+      "mirror": null,
+      "tags": [
+        "body"
+      ]
+    },
+    {
+      "id": "pelvis",
+      "type": "sphere",
+      "parent": "rear",
+      "pos": [
+        -0.26,
+        0,
+        0.88
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.0,
+        1.05,
+        0.75
+      ],
+      "r": 0.19,
+      "link": true,
+      "mirror": null,
+      "tags": [
+        "body"
+      ]
+    },
+    {
+      "id": "FL1",
+      "type": "sphere",
+      "parent": "chest",
+      "pos": [
+        0.22,
+        0.121,
+        0.95
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.116,
+      "link": true,
+      "mirror": "FR1",
+      "tags": [
+        "leg",
+        "front",
+        "L"
+      ]
+    },
+    {
+      "id": "FR1",
+      "type": "sphere",
+      "parent": "chest",
+      "pos": [
+        0.22,
+        -0.121,
+        0.95
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.116,
+      "link": true,
+      "mirror": "FL1",
+      "tags": [
+        "leg",
+        "front",
+        "R"
+      ]
+    },
+    {
+      "id": "FL2",
+      "type": "sphere",
+      "parent": "FL1",
+      "pos": [
+        0.226,
+        0.154,
+        0.55
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.121,
+      "link": true,
+      "mirror": "FR2",
+      "tags": [
+        "leg",
+        "front",
+        "L"
+      ]
+    },
+    {
+      "id": "FR2",
+      "type": "sphere",
+      "parent": "FR1",
+      "pos": [
+        0.226,
+        -0.154,
+        0.55
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.121,
+      "link": true,
+      "mirror": "FL2",
+      "tags": [
+        "leg",
+        "front",
+        "R"
+      ]
+    },
+    {
+      "id": "FL3",
+      "type": "sphere",
+      "parent": "FL2",
+      "pos": [
+        0.27,
+        0.166,
+        0.25
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.132,
+      "link": true,
+      "mirror": "FR3",
+      "tags": [
+        "leg",
+        "front",
+        "L"
+      ]
+    },
+    {
+      "id": "FR3",
+      "type": "sphere",
+      "parent": "FR2",
+      "pos": [
+        0.27,
+        -0.166,
+        0.25
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.132,
+      "link": true,
+      "mirror": "FL3",
+      "tags": [
+        "leg",
+        "front",
+        "R"
+      ]
+    },
+    {
+      "id": "FL4",
+      "type": "sphere",
+      "parent": "FL3",
+      "pos": [
+        0.28,
+        0.175,
+        0.13
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.08,
+        1.08,
+        0.75
+      ],
+      "r": 0.13,
+      "link": true,
+      "mirror": "FR4",
+      "tags": [
+        "leg",
+        "front",
+        "L"
+      ]
+    },
+    {
+      "id": "FR4",
+      "type": "sphere",
+      "parent": "FR3",
+      "pos": [
+        0.28,
+        -0.175,
+        0.13
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.08,
+        1.08,
+        0.75
+      ],
+      "r": 0.13,
+      "link": true,
+      "mirror": "FL4",
+      "tags": [
+        "leg",
+        "front",
+        "R"
+      ]
+    },
+    {
+      "id": "BL0",
+      "type": "sphere",
+      "parent": "rear",
+      "pos": [
+        -0.257,
+        0.078,
+        0.95
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.245,
+      "link": true,
+      "mirror": "BR0",
+      "tags": [
+        "leg",
+        "back",
+        "L"
+      ]
+    },
+    {
+      "id": "BR0",
+      "type": "sphere",
+      "parent": "rear",
+      "pos": [
+        -0.257,
+        -0.138,
+        0.95
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.245,
+      "link": true,
+      "mirror": "BL0",
+      "tags": [
+        "leg",
+        "back",
+        "R"
+      ]
+    },
+    {
+      "id": "BL1",
+      "type": "sphere",
+      "parent": "BL0",
+      "pos": [
+        -0.298,
+        0.193,
+        0.674
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        0.898,
+        1
+      ],
+      "r": 0.16,
+      "link": true,
+      "mirror": "BR1",
+      "tags": [
+        "leg",
+        "back",
+        "L"
+      ]
+    },
+    {
+      "id": "BR1",
+      "type": "sphere",
+      "parent": "BR0",
+      "pos": [
+        -0.298,
+        -0.193,
+        0.674
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        0.898,
+        1
+      ],
+      "r": 0.16,
+      "link": true,
+      "mirror": "BL1",
+      "tags": [
+        "leg",
+        "back",
+        "R"
+      ]
+    },
+    {
+      "id": "BL2",
+      "type": "sphere",
+      "parent": "BL1",
+      "pos": [
+        -0.477,
+        0.205,
+        0.66
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.12,
+      "link": true,
+      "mirror": "BR2",
+      "tags": [
+        "leg",
+        "back",
+        "L"
+      ]
+    },
+    {
+      "id": "BR2",
+      "type": "sphere",
+      "parent": "BR1",
+      "pos": [
+        -0.477,
+        -0.205,
+        0.66
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "r": 0.12,
+      "link": true,
+      "mirror": "BL2",
+      "tags": [
+        "leg",
+        "back",
+        "R"
+      ]
+    },
+    {
+      "id": "BL3",
+      "type": "sphere",
+      "parent": "BL2",
+      "pos": [
+        -0.413,
+        0.228,
+        0.257
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        0.941,
+        1
+      ],
+      "r": 0.15,
+      "link": true,
+      "mirror": "BR3",
+      "tags": [
+        "leg",
+        "back",
+        "L"
+      ]
+    },
+    {
+      "id": "BR3",
+      "type": "sphere",
+      "parent": "BR2",
+      "pos": [
+        -0.413,
+        -0.228,
+        0.257
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        0.941,
+        1
+      ],
+      "r": 0.15,
+      "link": true,
+      "mirror": "BL3",
+      "tags": [
+        "leg",
+        "back",
+        "R"
+      ]
+    },
+    {
+      "id": "BL4",
+      "type": "sphere",
+      "parent": "BL3",
+      "pos": [
+        -0.393,
+        0.221,
+        0.145
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.08,
+        1.08,
+        0.75
+      ],
+      "r": 0.145,
+      "link": true,
+      "mirror": "BR4",
+      "tags": [
+        "leg",
+        "back",
+        "L"
+      ]
+    },
+    {
+      "id": "BR4",
+      "type": "sphere",
+      "parent": "BR3",
+      "pos": [
+        -0.393,
+        -0.221,
+        0.145
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.08,
+        1.08,
+        0.75
+      ],
+      "r": 0.145,
+      "link": true,
+      "mirror": "BL4",
+      "tags": [
+        "leg",
+        "back",
+        "R"
+      ]
+    },
+    {
+      "id": "neck",
+      "type": "tube",
+      "parent": "head",
+      "pos": [
+        0.45,
+        0,
+        1.85
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "a": [
+        0.1,
+        0,
+        0.1
+      ],
+      "b": [
+        -0.2,
+        0,
+        -0.73
+      ],
+      "ra": 0.2,
+      "rb": 0.15,
+      "link": false,
+      "mirror": null,
+      "tags": [
+        "body"
+      ]
+    }
+  ],
+  "anim": {
+    "fps": 12,
+    "dur": 1,
+    "loop": 1,
+    "keys": []
+  },
+  "game": {
+    "h": 1,
+    "pad": 0.1,
+    "scale": 0.3767
+  }
+}

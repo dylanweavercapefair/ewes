@@ -1,0 +1,76 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pony ragdoll lab</title>
+<style>
+:root{--bg:#f3f0e8;--fg:#1d2420;--pn:#fff;--ac:#2f8f6a;--ln:#c9c4b8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a16;--fg:#e4ece7;--pn:#1c2721;--ln:#384a41}}
+:root[data-theme="dark"]{--bg:#121a16;--fg:#e4ece7;--pn:#1c2721;--ln:#384a41}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.3 system-ui,-apple-system,sans-serif;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px;padding:8px 10px}
+button{min-height:44px;min-width:44px;padding:0 14px;border:1px solid var(--ln);border-radius:10px;background:var(--pn);color:var(--fg);font:inherit}
+button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+#v{flex:1;min-height:0;position:relative}canvas{width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;left:10px;top:8px;font-size:13px;pointer-events:none}
+</style></head><body>
+<header><button id="bs" class="on">Standing</button><button id="bx">X-ray</button><button id="bd">Drop cube</button><button id="bw">Swallow</button><button id="br">Reset</button></header>
+<div id="v"><canvas id="c"></canvas><div id="hud"></div></div>
+<script>
+const RAW=[["head",.45,0,1.85,.539,"chest"],["muzzle",.74,0,1.62,.22,"head"],["chest",.2,0,1,.34,""],["rear",-.165,-.03,1.024,.36,"chest"],["pelvis",-.26,0,.88,.2,"rear"]];
+[["FL1",.22,.121,.95,.116,"chest"],["FL2",.226,.154,.55,.121,"FL1"],["FL3",.27,.166,.25,.132,"FL2"],["FL4",.28,.175,.13,.13,"FL3"],["BL0",-.257,.078,.95,.245,"rear"],["BL1",-.298,.193,.674,.16,"BL0"],["BL2",-.477,.205,.66,.12,"BL1"],["BL3",-.413,.228,.257,.15,"BL2"],["BL4",-.393,.221,.145,.145,"BL3"]]
+.forEach(a=>{RAW.push(a);const b=a.slice();b[0]=a[0].replace("L","R");b[5]=a[5].replace("L","R");b[2]=a[0]=="BL0"?-.138:-a[2];RAW.push(b)});
+const S=RAW.map(a=>({n:a[0],p:a[5]})),N=S.length,CI=N,id=Object.fromEntries(S.map((s,i)=>[s.n,i]));
+const X=RAW.map(a=>[a[1],a[2],a[3]]),REST=X.map(a=>a.slice()),R=RAW.map(a=>a[4]);
+const D=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+X.push([1.2,0,3]);R.push(.11);const Q=X.map(a=>a.slice());
+const C=[];S.forEach((s,i)=>{if(s.p){const j=id[s.p];C.push([i,j,D(X[i],X[j]),0])}});
+[["chest","pelvis"],["FL1","FR1"],["BL0","BR0"],["FL1","rear"],["FR1","rear"],["BL0","chest"],["BR0","chest"]].forEach(([a,b])=>C.push([id[a],id[b],D(X[id[a]],X[id[b]]),0]));
+[["head","rear",.8],["muzzle","chest",.8],["FL1","FL3",.6],["FR1","FR3",.6],["BL0","BL2",.6],["BR0","BR2",.6],["BL1","BL3",.6],["BR1","BR3",.6]].forEach(([a,b,f])=>C.push([id[a],id[b],D(X[id[a]],X[id[b]])*f,1]));
+const PR=[];for(let i=0;i<N;i++)for(let j=i+1;j<N;j++)if(D(X[i],X[j])>(R[i]+R[j])*1.05)PR.push([i,j]);
+let stand=1,xray=0,grab=null,tgt=[0,0,0],cube={tract:0,s:0,dwell:0};
+const cv=document.getElementById("c"),g=cv.getContext("2d"),hud=document.getElementById("hud");let W=1,H=1,k=1,dpr=1;
+const sc=p=>[W/2+(p[0]-p[1])*32*k,H*.62+((p[0]+p[1])*16-p[2]*32)*k];
+const lerp=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t),sub=(a,b)=>a.map((v,i)=>v-b[i]),nm=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l)};
+function path(){const m=X[id.muzzle],hd=X[id.head],ch=X[id.chest],rr=X[id.rear],pv=X[id.pelvis],d=nm(sub(pv,rr));
+ return[m,hd,lerp(hd,ch,.7),ch,lerp(lerp(ch,rr,.5),[ch[0],ch[1],ch[2]-.25],.3),lerp(rr,pv,.5),pv.map((v,i)=>v+d[i]*.3)]}
+const STG=["mouth","pharynx","esophagus","cardia","stomach","intestine","exit"];
+function solve(){for(let it=0;it<8;it++){
+ C.forEach(([i,j,L,t])=>{const a=X[i],b=X[j],d=D(a,b)||1e-6;if(t&&d>=L)return;const f=(d-L)/d*.5;for(let q=0;q<3;q++){const e=(b[q]-a[q])*f;a[q]+=e;b[q]-=e}});
+ const T=cube.tract?N:N+1;PR.forEach(([i,j])=>col(i,j));if(!cube.tract)for(let i=0;i<N;i++)col(i,CI);
+ for(let i=0;i<T;i++){const p=X[i];if(p[2]<R[i]){p[2]=R[i];Q[i][0]+=(p[0]-Q[i][0])*.3;Q[i][1]+=(p[1]-Q[i][1])*.3}}
+ if(grab!=null){const p=X[grab];for(let q=0;q<3;q++){p[q]+=(tgt[q]-p[q])*.5;Q[grab][q]=p[q]}}}}
+function col(i,j){const a=X[i],b=X[j],d=D(a,b),m=R[i]+R[j];if(d<m&&d>1e-6){const f=(m-d)/d*.5;for(let q=0;q<3;q++){const e=(b[q]-a[q])*f;a[q]-=e;b[q]+=e}}}
+function step(){const dt=1/60,gr=-14;
+ for(let i=0;i<=N;i++){if(i==grab||(i==CI&&cube.tract))continue;const p=X[i],q=Q[i];for(let a=0;a<3;a++){const v=(p[a]-q[a])*.992;q[a]=p[a];p[a]+=v+(a==2?gr*dt*dt:0)}}
+ if(stand&&grab==null){const c=X[id.chest],r=REST[id.chest];for(let i=0;i<N;i++){const p=X[i];p[0]+=(c[0]-r[0]+REST[i][0]-p[0])*.05;p[1]+=(c[1]-r[1]+REST[i][1]-p[1])*.05;p[2]+=(REST[i][2]-p[2])*.05}}
+ solve();
+ if(cube.tract){const P=path();if(cube.s>=4&&cube.s<4.05&&cube.dwell<2.5)cube.dwell+=dt;else cube.s+=dt*.45;
+  if(cube.s>=6){cube.tract=0;const e=P[6];X[CI]=e.slice();Q[CI]=e.map((v,i)=>v-(e[i]-P[5][i])*.08);}
+  else{const i=Math.floor(cube.s),p=lerp(P[i],P[Math.min(6,i+1)],cube.s-i);X[CI]=p;Q[CI]=p.slice()}}}
+function draw(){g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+ g.strokeStyle="rgba(120,150,130,.35)";g.lineWidth=1;for(let i=-6;i<=6;i++){let a=sc([i*.5,-3,0]),b=sc([i*.5,3,0]);g.beginPath();g.moveTo(...a);g.lineTo(...b);a=sc([-3,i*.5,0]);b=sc([3,i*.5,0]);g.moveTo(...a);g.lineTo(...b);g.stroke()}
+ const Rp=45.25*k,items=[],al=xray||cube.tract?.5:1;
+ const ball=(p,r,c)=>()=>{const[x,y]=sc(p);g.beginPath();g.arc(x,y,r*Rp,0,7);g.fill()};
+ for(let i=0;i<N;i++){const p=X[i],s=sc([p[0],p[1],0]);g.fillStyle="rgba(0,0,0,.25)";g.beginPath();g.ellipse(s[0],s[1],R[i]*Rp*Math.max(.3,1-p[2]*.25),R[i]*Rp*.5*Math.max(.3,1-p[2]*.25),0,0,7);g.fill()}
+ const col=n=>/^(head|muzzle)/.test(n)?"#e8a4b8":/^F/.test(n)?"#e9d3b2":/^B[LR]/.test(n)?"#b98f6c":"#d4b090";
+ const lk=(a,b,ra,rb,pad)=>{const[x1,y1]=sc(a),[x2,y2]=sc(b),r1=ra*Rp+pad,r2=rb*Rp+pad,n=Math.max(2,Math.ceil(Math.hypot(x2-x1,y2-y1)/(Math.min(r1,r2)*.35)));for(let i=0;i<=n;i++){const t=i/n;g.beginPath();g.arc(x1+(x2-x1)*t,y1+(y2-y1)*t,r1+(r2-r1)*t,0,7);g.fill()}};
+ const it=[];S.forEach((s,i)=>{it.push([X[i][0]+X[i][1],i,-1]);if(s.p)it.push([X[i][0]+X[i][1]-.01,i,id[s.p]])});it.sort((a,b)=>a[0]-b[0]);
+ g.globalAlpha=al;g.fillStyle="#231813";it.forEach(([,i,j])=>j<0?lk(X[i],X[i],R[i],R[i],3):lk(X[j],X[i],R[j],R[i],3));
+ it.forEach(([,i,j])=>{g.fillStyle=col(S[i].n);j<0?lk(X[i],X[i],R[i],R[i],0):lk(X[j],X[i],R[j],R[i],0)});g.globalAlpha=1;
+ const c=sc(X[CI]),h=R[CI]*Rp*1.15;g.fillStyle="#e07a28";g.strokeStyle="#5a2d0c";g.lineWidth=2;g.beginPath();g.rect(c[0]-h,c[1]-h,h*2,h*2);g.fill();g.stroke();
+ hud.textContent=(stand?"Standing":"Ragdoll")+" · cube: "+(cube.tract?"inside — "+STG[Math.min(6,Math.floor(cube.s))]+(cube.s>=4&&cube.dwell<2.5&&cube.s<4.05?" (holding)":""):"free")+" · drag any ball or the cube"}
+function loop(){step();draw();requestAnimationFrame(loop)}
+function fit(){dpr=devicePixelRatio||1;W=cv.clientWidth;H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;k=Math.min(W,H)/110}
+new ResizeObserver(fit).observe(cv);fit();
+function world(e,i){const r=cv.getBoundingClientRect(),sx=e.clientX-r.left,sy=e.clientY-r.top,u=X[i][0]+X[i][1],v=(sx-W/2)/(32*k);return[(u+v)/2,(u-v)/2,Math.max(R[i],(u*16*k-(sy-H*.62))/(32*k))]}
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);const r=cv.getBoundingClientRect();let b=null,bd=48;for(let i=0;i<=N;i++){const s=sc(X[i]),d=Math.hypot(s[0]-(e.clientX-r.left),s[1]-(e.clientY-r.top))-R[i]*45.25*k;if(d<bd){bd=d;b=i}}if(b!=null){grab=b;if(b==CI&&cube.tract)cube.tract=0;tgt=world(e,b)}});
+cv.addEventListener("pointermove",e=>{if(grab!=null)tgt=world(e,grab)});
+const rel=()=>{grab=null};cv.addEventListener("pointerup",rel);cv.addEventListener("pointercancel",rel);
+const $=i=>document.getElementById(i);
+$("bs").onclick=e=>{stand^=1;e.target.classList.toggle("on",!!stand);e.target.textContent=stand?"Standing":"Ragdoll"};
+$("bx").onclick=e=>{xray^=1;e.target.classList.toggle("on",!!xray)};
+$("bd").onclick=()=>{cube.tract=0;X[CI]=[1.2,0,3];Q[CI]=[1.2,0,3]};
+$("bw").onclick=()=>{if(D(X[CI],X[id.muzzle])<R[id.muzzle]+.45){cube.tract=1;cube.s=0;cube.dwell=0}else hud.textContent="Bring the cube to the muzzle first"};
+$("br").onclick=()=>{for(let i=0;i<=N;i++){X[i]=(i<N?REST[i]:[1.2,0,3]).slice();Q[i]=X[i].slice()}cube.tract=0};
+loop();
+</script></body></html>

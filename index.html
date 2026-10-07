@@ -526,10 +526,11 @@ const _mkv = new THREE.Vector3();
 function updateModelLight() {
   const es = document.body.getAttribute('data-es') || 'LIVE';
   const on = es !== 'LIVE';
-  ambLight.intensity = on ? 0.18 : 0.45;
-  hemiLight.intensity = on ? 0.28 : 0.45;
-  celestialLight.intensity = on ? 0.35 : 0.9;
-  modelKey.intensity = on ? 0.95 : 0.0;
+  // LIVE a touch brighter than before; modeler is now close to the game look (soft key, not a floodlight)
+  ambLight.intensity = on ? 0.38 : 0.52;
+  hemiLight.intensity = on ? 0.40 : 0.50;
+  celestialLight.intensity = on ? 0.60 : 1.0;
+  modelKey.intensity = on ? 0.38 : 0.0;
   if (on) {
     _mkv.set(-2.2, 3.0, 1.0).applyQuaternion(camera.quaternion);
     modelKey.position.copy(camera.position).add(_mkv);
@@ -1214,7 +1215,7 @@ const _midVec = new THREE.Vector3();
 const _refX = new THREE.Vector3(1,0,0), _refZ = new THREE.Vector3(0,0,1), _bx = new THREE.Vector3(), _bz = new THREE.Vector3(), _bm = new THREE.Matrix4();
 function updateBodyConnectors() {
   if (window.ORGVIEW) { try { ORGVIEW.apply(); } catch (e) { console.warn('ORGVIEW', e); } }
-  if (window.SkinFuse) { try { SkinFuse.update(); } catch (e) { console.warn('SkinFuse', e); window.__sfErr = (window.__sfErr || 0) + 1; if (window.__sfErr > 60) SkinFuse.on = false; } }
+  if (window.SkinFuse) { try { SkinFuse.update(); window.__sfErr = 0; } catch (e) { console.warn('SkinFuse', e); window.__sfErr = (window.__sfErr || 0) + 1; if (window.__sfErr > 600) SkinFuse.on = false; } }
   bodyConnectorGroup.visible = bodyConnectorsVisible && ponyMat.visible;
   if (!bodyConnectorGroup.visible) { ringMarker.visible = false; ringGhosts.forEach(g => g.visible = false); return; }
 
@@ -1330,13 +1331,16 @@ var SkinCore = (function () {
       return Math.sqrt(ex * ex + ey * ey + ez * ez) - rad;
     }
     var HOLES = (o.holes || []).map(function (h) { 
-      var n = h.n, l = Math.hypot(n[0], n[1], n[2]) || 1, nx = n[0] / l, ny = n[1] / l, nz = n[2] / l, out = 0.06, inn = 0.36;
+      var n = h.n, l = Math.hypot(n[0], n[1], n[2]) || 1, nx = n[0] / l, ny = n[1] / l, nz = n[2] / l, out = 0.06, inn = 0.30;
       var a = [nx * out, ny * out, nz * out], b = [-nx * inn, -ny * inn, -nz * inn], ba = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
       var L = Math.hypot(ba[0], ba[1], ba[2]);
       return { c: h.c, n: [nx, ny, nz], r: h.r, a: a, ba: ba, bb: ba[0] * ba[0] + ba[1] * ba[1] + ba[2] * ba[2], far: Math.pow(L + h.r + 0.2, 2) }; 
     });
+    var CAV = null; // hollow organ bay: a capsule between chest and rear, kept inside a wall of thickness 'wall'
+    if (o.cavity) { var cv0 = o.cavity, cba = [cv0.b[0] - cv0.a[0], cv0.b[1] - cv0.a[1], cv0.b[2] - cv0.a[2]];
+      CAV = { a: cv0.a, ba: cba, bb: cba[0] * cba[0] + cba[1] * cba[1] + cba[2] * cba[2], ra: cv0.ra, rb: cv0.rb, wall: cv0.wall }; }
     var gd = [1e9, 1e9, 1e9, 1e9, 1e9, 1e9, 1e9];
-    function F(x, y, z) {
+    function Fbody(x, y, z) {
       var d0 = 1e9, g, any = false;
       for (g = 1; g < 7; g++) gd[g] = 1e9;
       for (var i = 0; i < NP; i++) {
@@ -1348,7 +1352,18 @@ var SkinCore = (function () {
       if (!any) return 0.5;
       var best = 1e9; // each limb / cheek blends into the trunk, but never into another limb
       for (g = 1; g < 7; g++) if (gd[g] < 1e8) { var r = smin(d0, gd[g], K); if (r < best) best = r; }
-      var res = best < 1e8 ? best : d0;
+      return best < 1e8 ? best : d0;
+    }
+    function F(x, y, z, raw) {
+      var res = Fbody(x, y, z); if (raw) return res;
+      if (CAV && res < 0) { // hollow the trunk: the skin becomes a real wall with an inside you can see into
+        var cx0 = x - CAV.a[0], cy0 = y - CAV.a[1], cz0 = z - CAV.a[2];
+        var cu = CAV.bb > 1e-12 ? (cx0 * CAV.ba[0] + cy0 * CAV.ba[1] + cz0 * CAV.ba[2]) / CAV.bb : 0; cu = cu < 0 ? 0 : cu > 1 ? 1 : cu;
+        var cex = cx0 - CAV.ba[0] * cu, cey = cy0 - CAV.ba[1] * cu, cez = cz0 - CAV.ba[2] * cu;
+        var capD = Math.sqrt(cex * cex + cey * cey + cez * cez) - (CAV.ra + (CAV.rb - CAV.ra) * cu);
+        var cavD = Math.max(res + CAV.wall, capD);
+        res = -smin(-res, cavD, 0.02); // max(res, -cavity)
+      }
       for (var hi = 0; hi < HOLES.length; hi++) { // carve each hole (a rounded cutter driven in along the surface normal)
         var H = HOLES[hi], hx = x - H.c[0], hy = y - H.c[1], hz = z - H.c[2];
         if (hx * hx + hy * hy + hz * hz > H.far) continue;
@@ -1419,6 +1434,24 @@ var SkinCore = (function () {
       pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z; nor[i * 3] = g[0]; nor[i * 3 + 1] = g[1]; nor[i * 3 + 2] = g[2];
     }
 
+    /* normal repair: where the field-gradient normal points the wrong way (the white / black specks), use the mesh's own normal */
+    var MN = new Float32Array(V * 3), fi = idx, ft;
+    for (ft = 0; ft < fi.length; ft += 3) {
+      var ia = fi[ft] * 3, ib = fi[ft + 1] * 3, ic = fi[ft + 2] * 3;
+      var ux = pos[ib] - pos[ia], uy = pos[ib + 1] - pos[ia + 1], uz = pos[ib + 2] - pos[ia + 2], vx = pos[ic] - pos[ia], vy = pos[ic + 1] - pos[ia + 1], vz = pos[ic + 2] - pos[ia + 2];
+      var fnx = uy * vz - uz * vy, fny = uz * vx - ux * vz, fnz = ux * vy - uy * vx;
+      MN[ia] += fnx; MN[ia + 1] += fny; MN[ia + 2] += fnz; MN[ib] += fnx; MN[ib + 1] += fny; MN[ib + 2] += fnz; MN[ic] += fnx; MN[ic + 1] += fny; MN[ic + 2] += fnz;
+    }
+    var inner = new Uint8Array(V);
+    for (i = 0; i < V; i++) {
+      var ml = Math.hypot(MN[i * 3], MN[i * 3 + 1], MN[i * 3 + 2]);
+      if (ml > 1e-12) {
+        var mx = MN[i * 3] / ml, my = MN[i * 3 + 1] / ml, mz = MN[i * 3 + 2] / ml;
+        if (mx * nor[i * 3] + my * nor[i * 3 + 1] + mz * nor[i * 3 + 2] < 0.5) { nor[i * 3] = mx; nor[i * 3 + 1] = my; nor[i * 3 + 2] = mz; }
+      }
+      if (CAV && F(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], true) < -CAV.wall * 0.5) inner[i] = 1;
+    }
+
     /* skin weights: nodes = translating bones, segments = rotating+stretching bones */
     var bi = new Uint16Array(V * 4), bw = new Float32Array(V * 4), tau = o.tau || 0.03, ds = new Float32Array(NP);
     for (i = 0; i < V; i++) {
@@ -1434,7 +1467,7 @@ var SkinCore = (function () {
       var sum = 0; for (m = 0; m < 4; m++) if (top[m][0] >= 0) sum += top[m][1];
       for (m = 0; m < 4; m++) { bi[i * 4 + m] = top[m][0] >= 0 ? top[m][0] : 0; bw[i * 4 + m] = top[m][0] >= 0 ? top[m][1] / sum : 0; }
     }
-    return { pos: pos, nor: nor, idx: new Uint32Array(idx), bi: bi, bw: bw, NN: NN, NS: NS, V: V,
+    return { pos: pos, nor: nor, idx: new Uint32Array(idx), bi: bi, bw: bw, NN: NN, NS: NS, V: V, inner: inner,
       restN: nodes.map(function (n) { return n.p.slice(); }),
       restS: segs.map(function (s) { var A = nodes[s.a].p, B = nodes[s.b].p, d = [A[0] - B[0], A[1] - B[1], A[2] - B[2]], l = Math.hypot(d[0], d[1], d[2]) || 1; return { A: A.slice(), d: [d[0] / l, d[1] / l, d[2] / l], l: l }; }) };
   }
@@ -1492,7 +1525,7 @@ if (typeof module !== 'undefined') module.exports = SkinCore;
 /* ===== SKIN FUSE: wraps the core into the live scene (ONE seamless pony skin, driven by the 23+ nodes) ===== */
 function __selName() { try { return selectedNodeName; } catch (e) { return null; } }
 var SkinFuse = (function () {
-  var API = { on: true, blend: 0.06, cellIdle: 0.032, cellLive: 0.048 };
+  var API = { on: true, hollow: true, blend: 0.06, cellIdle: 0.032, cellLive: 0.048 };
   var skinMat = ponyMat.clone();
   skinMat.clippingPlanes = ponyMat.clippingPlanes;   // same cutaway plane as the old shell
   skinMat.vertexColors = true; skinMat.color.set(0xffffff);
@@ -1559,7 +1592,7 @@ var SkinFuse = (function () {
     var nodes = bodyMeshes.map(function (b) {
       var m = b.mesh, r = m.geometry.parameters ? m.geometry.parameters.radius : 0.1;
       var hz = isHole(b.name), k = hz ? 0.004 / Math.max(r, 1e-3) : 1;
-      return { name: b.name, p: [m.position.x, m.position.y, m.position.z], R: [Math.max(0.004, r * Math.abs(m.scale.x) * k), Math.max(0.004, r * Math.abs(m.scale.y) * k), Math.max(0.004, r * Math.abs(m.scale.z) * k)], g: grp(b.name) };
+      return { name: b.name, p: [m.position.x, m.position.y, m.position.z], R: [Math.max(hz ? 0.004 : 0.026, r * Math.abs(m.scale.x) * k), Math.max(hz ? 0.004 : 0.026, r * Math.abs(m.scale.y) * k), Math.max(hz ? 0.004 : 0.026, r * Math.abs(m.scale.z) * k)], g: grp(b.name) };
     });
     segs = [];
     bodyConnectors.forEach(function (c) {
@@ -1568,7 +1601,13 @@ var SkinFuse = (function () {
       segs.push({ a: a, b: b, rA: c.rPv, rB: c.rCv, rings: c.def.rings, g: grp(c.child.name), conn: c });
     });
     holesNow = holeList();
-    S = SkinCore.build(nodes, segs, { cell: cell, blend: API.blend, holes: holesNow });
+    var ci = -1, ri = -1, cav = null;
+    nodes.forEach(function (n, k) { if (n.name === 'chest') ci = k; else if (n.name === 'rear') ri = k; });
+    if (API.hollow && ci >= 0 && ri >= 0) {
+      var cn = nodes[ci], rn = nodes[ri];
+      cav = { a: cn.p.slice(), b: rn.p.slice(), ra: (cn.R[1] + cn.R[2]) / 2 * 0.78, rb: (rn.R[1] + rn.R[2]) / 2 * 0.78, wall: 0.07 };
+    }
+    S = SkinCore.build(nodes, segs, { cell: cell, blend: API.blend, holes: holesNow, cavity: cav });
     pos = new Float32Array(S.V * 3); nor = new Float32Array(S.V * 3); col = new Float32Array(S.V * 3);
     var g2 = new THREE.BufferGeometry();
     g2.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
@@ -1593,12 +1632,17 @@ var SkinFuse = (function () {
       for (m = 0; m < 4; m++) { var w = S.bw[v * 4 + m]; if (!w) continue; var cc = cols[S.bi[v * 4 + m]]; r += w * cc.r; g += w * cc.g; b += w * cc.b; }
       col[v * 3] = r; col[v * 3 + 1] = g; col[v * 3 + 2] = b;
     }
+    if (S.inner) for (v = 0; v < S.V; v++) { // the inside wall of the body is wet pink, not skin colour
+      if (!S.inner[v]) continue;
+      col[v * 3] += (0.55 - col[v * 3]) * 0.8; col[v * 3 + 1] += (0.20 - col[v * 3 + 1]) * 0.8; col[v * 3 + 2] += (0.27 - col[v * 3 + 2]) * 0.8;
+    }
     for (var hi = 0; hi < holesNow.length; hi++) { // dark mucosa lining inside and just around each opening
       var H = holesNow[hi], nn = H.n, nl = Math.hypot(nn[0], nn[1], nn[2]) || 1;
       for (v = 0; v < S.V; v++) {
         var dx = S.pos[v * 3] - H.c[0], dy = S.pos[v * 3 + 1] - H.c[1], dz = S.pos[v * 3 + 2] - H.c[2];
         var ax = (dx * nn[0] + dy * nn[1] + dz * nn[2]) / nl, px = dx - ax * nn[0] / nl, py = dy - ax * nn[1] / nl, pz = dz - ax * nn[2] / nl;
         var rr = Math.hypot(px, py, pz) / (H.r * 1.45); if (rr > 1) continue;
+        if (ax < -0.14 || ax > -0.01) continue; // only the tunnel walls inside the skin: never the outside skin, never the far side of the body
         var t = 1 - rr * rr, T = [0.36, 0.09, 0.13];
         col[v * 3] += (T[0] - col[v * 3]) * t; col[v * 3 + 1] += (T[1] - col[v * 3 + 1]) * t; col[v * 3 + 2] += (T[2] - col[v * 3 + 2]) * t;
       }
@@ -1616,6 +1660,7 @@ var SkinFuse = (function () {
       else if (t - builtAt > 450 + lastMs) rebuild(API.cellLive);
     }
     if (!S) return;
+    if (S.NN !== bodyMeshes.length || curN.length !== bodyMeshes.length) { rebuild(API.cellLive); } // a node was added or removed: rebuild right now, never run on the old skin
     setHidden(true);
     followHoles();
     for (i = 0; i < bodyMeshes.length; i++) { var p = bodyMeshes[i].mesh.position; curN[i][0] = p.x; curN[i][1] = p.y; curN[i][2] = p.z; }
@@ -1623,7 +1668,7 @@ var SkinFuse = (function () {
     geo.attributes.position.needsUpdate = true; geo.attributes.normal.needsUpdate = true;
     if (frame % 12 === 1) recolor();
     skinMesh.visible = ponyMat.visible && bodyConnectorsVisible;
-    skinMat.wireframe = ponyMat.wireframe; skinMat.transparent = ponyMat.transparent; skinMat.opacity = ponyMat.opacity;
+    skinMat.wireframe = ponyMat.wireframe; skinMat.transparent = ponyMat.transparent; skinMat.opacity = ponyMat.opacity; skinMat.depthWrite = ponyMat.depthWrite;
   };
   API.pick = function (rc) {
     if (!API.on || !S || !skinMesh.visible) return null;
@@ -1634,6 +1679,7 @@ var SkinFuse = (function () {
     return { p: characterGroup.worldToLocal(h.point.clone()), n: n };
   };
   API.markDirty = function () { dirty = true; dirtyAt = now(); };
+  API.setHollow = function (v) { API.hollow = (v === undefined) ? !API.hollow : !!v; dirty = true; dirtyAt = 0; if (typeof msg === 'function') msg('Hollow body: ' + (API.hollow ? 'ON — holes open into the body' : 'OFF — solid')); };
   API.set = function (v) {
     API.on = (v === undefined) ? !API.on : !!v;
     if (!API.on) { setHidden(false); skinMesh.visible = false; } else { dirty = true; dirtyAt = 0; }
@@ -1651,7 +1697,7 @@ try {
 /* ===== HOLE TOOL + ORGAN VIEW (one pony: holes are real nodes on the surface, organs hook up to them) ===== */
 var HoleTool = (function () {
   var T = { counter: 0 }, pill = null, pending = null, rims = {};
-  var KINDS = { plain: '⚪ Plain', anal: '💩 Anal', urinary: '💧 Urinary' };
+  var KINDS = { plain: '⚪ Plain hole (no tube)', anal: '💩 Anal', urinary: '💧 Urinary' };
   function HD() { return (window.EWS_HOLES = window.EWS_HOLES || {}); }
   function say(t) { if (typeof msg === 'function') msg(t); }
   function nearestBone(p) {
@@ -1695,6 +1741,23 @@ var HoleTool = (function () {
     if (pending) { selectBodyNode(pending); SkinFuse.markDirty(); say('🕳️ Hole placed. Move or scale it with the gizmo, pick a type, then ✔ Done'); }
     return true;
   };
+  function holeTarget() { var n = __selName(); return pending || (n && HD()[n] ? n : null); }
+  T.dragTo = function (x, y) { // finger dragging over the body slides the hole along the skin
+    var nm = holeTarget(); var d = nm && HD()[nm]; if (!d) return false;
+    var rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
+    var hit = SkinFuse.pick(rc); if (!hit) return true;
+    var bm = bodyMeshes.find(function (b) { return b.name === nm; }), bone = bodyMeshes.find(function (b) { return b.name === d.bone; });
+    if (!bm || !bone) return false;
+    bm.mesh.position.copy(hit.p); var bp = bone.mesh.position; d.off = [hit.p.x - bp.x, hit.p.y - bp.y, hit.p.z - bp.z]; d.n = [hit.n.x, hit.n.y, hit.n.z];
+    var s = SPHERES.find(function (q) { return q.n === nm; }); if (s) { s.x = hit.p.x; s.y = hit.p.y; s.z = hit.p.z; }
+    SkinFuse.markDirty(); return true;
+  };
+  T.size = function (f) {
+    var nm = holeTarget(); var bm = nm && bodyMeshes.find(function (b) { return b.name === nm; }); if (!bm) return;
+    bm.mesh.scale.multiplyScalar(f);
+    var s = SPHERES.find(function (q) { return q.n === nm; }); if (s) { s.sx *= f; s.sy *= f; s.sz *= f; }
+    SkinFuse.markDirty(); say('🕳️ ' + (f > 1 ? 'Bigger' : 'Smaller'));
+  };
   T.done = function () { window.holeToolOn = false; pending = null; T.pill(); say('✔ Hole kept. Tap it any time to edit'); };
   T.setKind = function (k) {
     var n = __selName(), d = n && HD()[n]; if (!d) return;
@@ -1715,7 +1778,7 @@ var HoleTool = (function () {
     if (!window.holeToolOn && !d) { pill.style.display = 'none'; return; }
     var b = function (l, js, on) { return '<button onclick="' + js + '" style="min-height:44px;min-width:44px;padding:0 12px;border-radius:22px;border:1px solid rgba(160,230,200,.3);background:' + (on ? '#5be2a0' : 'rgba(255,255,255,.08)') + ';color:' + (on ? '#0c1410' : '#e8fff3') + ';font:600 13px system-ui">' + l + '</button>'; };
     var h = '<span style="align-self:center;padding:0 6px">' + (d ? '🕳️ ' + n : '🕳️ tap the body') + '</span>';
-    if (d) { for (var k in KINDS) h += b(KINDS[k], "HoleTool.setKind('" + k + "')", d.kind === k); h += b('🗑️ Delete', 'HoleTool.del()'); }
+    if (d) { for (var k in KINDS) h += b(KINDS[k], "HoleTool.setKind('" + k + "')", d.kind === k); h += b('➕ Bigger', 'HoleTool.size(1.25)') + b('➖ Smaller', 'HoleTool.size(0.8)') + b('🗑️ Delete', 'HoleTool.del()'); }
     h += b('✔ Done', 'HoleTool.done()');
     pill.innerHTML = h; pill.style.display = 'flex';
   };
@@ -1727,7 +1790,7 @@ var HoleTool = (function () {
     bodyMeshes.forEach(function (b) {
       var d = H[b.name]; if (!d) return; alive[b.name] = 1;
       var r = rims[b.name];
-      if (!r) { r = rims[b.name] = new THREE.Mesh(new THREE.TorusGeometry(1, 0.2, 8, 24), new THREE.MeshStandardMaterial({ color: 0x8c2f46, roughness: 0.5 })); r.raycast = function () {}; characterGroup.add(r); }
+      if (!r) { r = rims[b.name] = new THREE.Mesh(new THREE.TorusGeometry(1, 0.12, 8, 28), new THREE.MeshStandardMaterial({ color: 0x8c2f46, roughness: 0.5 })); r.raycast = function () {}; characterGroup.add(r); }
       var m = b.mesh, rad = (m.geometry.parameters ? m.geometry.parameters.radius : 0.05) * (m.scale.x + m.scale.y + m.scale.z) / 3;
       r.position.set(m.position.x + d.n[0] * 0.006, m.position.y + d.n[1] * 0.006, m.position.z + d.n[2] * 0.006);
       r.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(d.n[0], d.n[1], d.n[2]).normalize());
@@ -1738,6 +1801,13 @@ var HoleTool = (function () {
   return T;
 })();
 window.HoleTool = HoleTool;
+(function () { // drag a finger over the body to slide the hole you just placed
+  var down = null;
+  addEventListener('pointerdown', function (e) { if (!window.holeToolOn) return; if (e.target.closest && e.target.closest('#hole-pill, #revolver, #sheet, .orb, .modal, #bbar')) return; down = e.pointerId; }, true);
+  addEventListener('pointermove', function (e) { if (down !== e.pointerId || !window.holeToolOn) return; if (HoleTool.dragTo(e.clientX, e.clientY)) { e.stopImmediatePropagation(); } }, true);
+  var up = function (e) { if (e.pointerId === down) down = null; };
+  addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true);
+})();
 
   // Default factory orifices: physically carve and weld anal & urinary pass-throughs into node 'rear'
   function initDefaultOrifices() {
@@ -1758,7 +1828,7 @@ window.armHoleTool = function () { HoleTool.arm(); };
 var ORGVIEW = (function () {
   var V = { active: false, autoCut: false, solo: null, skinOn: true, sig: '' };
   var show = { gut: 1, stomach: 1, cecum: 1, bladder: 1, urinary: 1, mare: 1, stallion: 0, bones: 0 };
-  var NAMES = { gut: '🧻 Gut tube', stomach: '🫃 Stomach', cecum: '🫘 Cecum', bladder: '💧 Bladder', urinary: '🚰 Urinary tubes', mare: '🐴 Mare tract', stallion: '🐎 Stallion tract', bones: '🦴 Skeleton' };
+  var NAMES = { gut: '🧻 Digestive: mouth > stomach > cecum > colon > anus', urinary: '💧 Bladder + urethra', mare: '🐴 Mare tract', stallion: '🐎 Stallion tract', bones: '🦴 Skeleton' };
   function say(t) { if (typeof msg === 'function') msg(t); }
 
   /* --- finish the tubes: urinary + both genders hooked to the same bladder / pelvis --- */
@@ -1775,32 +1845,149 @@ var ORGVIEW = (function () {
   var gutEnd0 = digestiveCurve.points[digestiveCurve.points.length - 1].clone();
   function holeOf(kind) {
     var H = window.EWS_HOLES || {};
-    for (var n in H) if (H[n].kind === kind) { var b = bodyMeshes.find(function (x) { return x.name === n; }); if (b) return b.mesh.position.clone(); }
+    for (var n in H) if (H[n].kind === kind) { var b = bodyMeshes.find(function (x) { return x.name === n; }); if (b) { var nn = H[n].n; return b.mesh.position.clone().addScaledVector(V3(nn[0], nn[1], nn[2]).normalize(), -0.045); } }
     return null;
   }
   function sexNow() { try { return ORGANS.sex; } catch (e) { return 'female'; } }
-  var tubeSig = '';
+  /* ORGAN RIG: the organs were authored for the starting body. Every frame they are re-fitted to where the chest and rear
+     nodes are now (position, tilt, roll, length, height, width), so the organ bag always sits inside the trunk. */
+  var RC = { p: [0.20, 0.914, 0], R: [0.277, 0.300, 0.277] }, RR = { p: [-0.192, 0.92, 0], R: [0.371, 0.335, 0.317] };
+  var rigQ = new THREE.Quaternion(), rigS = new THREE.Vector3(1, 1, 1), rigP = new THREE.Vector3(), rigM = new THREE.Matrix4();
+  var _f = new THREE.Vector3(), _l = new THREE.Vector3(), _u = new THREE.Vector3(), _t = new THREE.Vector3();
+  function nodeMesh(n) { var b = bodyMeshes.find(function (x) { return x.name === n; }); return b && b.mesh; }
+  function nodeR(m) { var r = m.geometry.parameters ? m.geometry.parameters.radius : 0.1; return [r * Math.abs(m.scale.x), r * Math.abs(m.scale.y), r * Math.abs(m.scale.z)]; }
+  function clampS(v) { return Math.max(0.55, Math.min(1.7, v)); }
+  function rigUpdate() {
+    var ch = nodeMesh('chest'), re = nodeMesh('rear'); if (!ch || !re) return;
+    var Rc = nodeR(ch), Rr = nodeR(re);
+    _f.subVectors(ch.position, re.position); var len = _f.length(); if (len < 1e-4) return; _f.multiplyScalar(1 / len);
+    var len0 = Math.hypot(RC.p[0] - RR.p[0], RC.p[1] - RR.p[1], RC.p[2] - RR.p[2]);
+    // sideways direction from the limb pairs (falls back to world Z)
+    _l.set(0, 0, 0);
+    [['FL1', 'FR1'], ['BL0', 'BR0']].forEach(function (pr) { var a = nodeMesh(pr[0]), b = nodeMesh(pr[1]); if (a && b) _l.add(_t.subVectors(a.position, b.position)); });
+    if (_l.lengthSq() < 1e-8) _l.set(0, 0, 1);
+    _l.addScaledVector(_f, -_l.dot(_f)); if (_l.lengthSq() < 1e-8) _l.set(0, 0, 1).addScaledVector(_f, -_f.z);
+    _l.normalize(); _u.crossVectors(_l, _f).normalize();
+    rigM.makeBasis(_f, _u, _l); rigQ.setFromRotationMatrix(rigM);
+    rigS.set(clampS(len / len0), clampS(((Rc[1] / RC.R[1]) + (Rr[1] / RR.R[1])) / 2), clampS(((Rc[2] / RC.R[2]) + (Rr[2] / RR.R[2])) / 2));
+    var mid1 = _t.addVectors(ch.position, re.position).multiplyScalar(0.5);
+    var m0x = (RC.p[0] + RR.p[0]) / 2, m0y = (RC.p[1] + RR.p[1]) / 2, m0z = (RC.p[2] + RR.p[2]) / 2;
+    rigP.set(m0x * rigS.x, m0y * rigS.y, m0z * rigS.z).applyQuaternion(rigQ).multiplyScalar(-1).add(mid1);
+    organGroup.position.copy(rigP); organGroup.quaternion.copy(rigQ); organGroup.scale.copy(rigS);
+    organGroup.updateMatrix(); organGroup.updateMatrixWorld(true);
+    if (typeof visceraLight !== 'undefined') { // the soft inner glow rides with the organs and is off when they are hidden
+      visceraLight.intensity = organGroup.visible ? 1.0 : 0.0;
+      _t.set(0.05, 0.82, 0); organGroup.localToWorld(_t); visceraLight.position.copy(_t);
+    }
+  }
+  var _inv = new THREE.Quaternion();
+  function toOrgan(p) { // a point in character space -> organ-bag space
+    _inv.copy(organGroup.quaternion).invert();
+    return p.clone().sub(organGroup.position).applyQuaternion(_inv).divide(organGroup.scale);
+  }
+  V.rig = rigUpdate;
+
+  /* ===== ORGAN SKINS: every organ system is ONE connected smooth surface grown from nodes (same tech as the pony skin).
+     Gut = mouth > throat > chest > STOMACH > small gut > CECUM > colon > rectum > the anal hole.  Urinary = bladder > urethra > the urinary hole.
+     Mare = uterus + two horns + two ovaries + vagina > the urinary hole. Sizes follow the live organ volumes. ===== */
+  [esophMesh, stomachMesh, cecumMesh, colonMesh, bladderMesh, urethra, vagina, uterineBodyMesh, hornLMesh, hornRMesh, ovaryL, ovaryR].forEach(function (m) { if (m) m.visible = false; });
+  var organSkinMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.38, side: THREE.DoubleSide });
+  function makeSkin(parent, name) { var m = new THREE.Mesh(new THREE.BufferGeometry(), organSkinMat); m.name = name; m.frustumCulled = false; parent.add(m); return m; }
+  var gutSkin = makeSkin(organGroup, 'gutSkin'), urinSkin = makeSkin(urinaryGroup, 'urinSkin'), mareSkin = makeSkin(femaleReproGroup, 'mareSkin');
+  var ORG_CELL = 0.013, ORG_K = 0.03;
+  function fuse(mesh, specs, links) {
+    var nodes = specs.map(function (s) { return { p: s.p, R: s.R, g: 0 }; });
+    var segs = links.map(function (l) { return { a: l[0], b: l[1], rA: specs[l[0]].t, rB: specs[l[1]].t, g: 0 }; });
+    var S = SkinCore.build(nodes, segs, { cell: ORG_CELL, blend: ORG_K });
+    var col = new Float32Array(S.V * 3), v, m;
+    for (v = 0; v < S.V; v++) {
+      var r = 0, g = 0, b = 0;
+      for (m = 0; m < 4; m++) { var w = S.bw[v * 4 + m]; if (!w) continue; var bi = S.bi[v * 4 + m], sp = bi < S.NN ? specs[bi] : specs[links[bi - S.NN][1]]; r += w * sp.c[0]; g += w * sp.c[1]; b += w * sp.c[2]; }
+      col[v * 3] = r; col[v * 3 + 1] = g; col[v * 3 + 2] = b;
+    }
+    var g2 = new THREE.BufferGeometry();
+    g2.setAttribute('position', new THREE.BufferAttribute(S.pos, 3));
+    g2.setAttribute('normal', new THREE.BufferAttribute(S.nor, 3));
+    g2.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g2.setIndex(new THREE.BufferAttribute(S.idx, 1));
+    var old = mesh.geometry; mesh.geometry = g2; if (old) old.dispose();
+    return S;
+  }
+  function q05(v) { return Math.round(Math.max(0.55, Math.min(1.7, v)) * 20) / 20; }
+  function orgVol() { // live organ sizes from the organ simulation
+    var o = {}; try { o.s = q05(ORGANS.stomachVol / 12); o.c = q05(1 + ORGANS.cecalGasPressure / 100); o.b = q05(0.7 + (ORGANS.bladderVol / 50) * 0.6); } catch (e) { o.s = o.c = o.b = 1; }
+    if (!isFinite(o.s)) o.s = 1; if (!isFinite(o.c)) o.c = 1; if (!isFinite(o.b)) o.b = 1; return o;
+  }
+  var C_TUBE = [0.86, 0.58, 0.55], C_STOM = [0.82, 0.38, 0.45], C_CEC = [0.72, 0.28, 0.36], C_COL = [0.66, 0.42, 0.36], C_ANAL = [0.60, 0.22, 0.28];
+  var C_BLAD = [0.95, 0.84, 0.45], C_URE = [0.88, 0.66, 0.30], C_UTER = [0.86, 0.48, 0.57], C_OVA = [0.78, 0.36, 0.50];
+  function sph(p, t, c, R) { return { p: [p.x, p.y, p.z], t: t, c: c, R: R || [t, t, t] }; }
+  function buildGut(an, mouth, ov) {
+    var cp = digestiveCurve.points;
+    var sp = [
+      sph(cp[0], 0.030, C_TUBE), sph(cp[1], 0.036, C_TUBE), sph(cp[2], 0.040, C_TUBE),
+      sph(cp[3], 0.045, C_STOM, [0.16 * ov.s, 0.13 * ov.s, 0.13 * ov.s]),
+      sph(cp[4], 0.045, C_TUBE),
+      sph(cp[5], 0.050, C_CEC, [0.21 * ov.c, 0.14 * ov.c, 0.12 * ov.c]),
+      sph(cp[6], 0.058, C_COL), sph(cp[7], 0.055, C_COL), sph(cp[8], 0.042, C_ANAL)
+    ];
+    var lk = []; for (var i = 0; i < sp.length - 1; i++) lk.push([i, i + 1]);
+    fuse(gutSkin, sp, lk);
+  }
+  function buildUrinary(ur, male, ov) {
+    var u = ur || V3(-0.46, 0.69, 0), bl = V3(-0.20, 0.72, 0), b = ov.b;
+    var sp = [sph(bl, 0.035, C_BLAD, [0.105 * b, 0.09 * b, 0.09 * b])];
+    var path = male ? [V3(-0.24, 0.64, 0), V3(-0.19, 0.58, 0), u] : [V3(-0.30, 0.70, 0), u];
+    path.forEach(function (p) { sp.push(sph(p, 0.020, C_URE)); });
+    var lk = []; for (var i = 0; i < sp.length - 1; i++) lk.push([i, i + 1]);
+    fuse(urinSkin, sp, lk);
+  }
+  function buildMare(ur) {
+    var u = ur || V3(-0.46, 0.69, 0);
+    var sp = [
+      sph(V3(-0.34, 0.75, 0), 0.040, C_UTER),                 // 0 cervix
+      sph(V3(-0.26, 0.78, 0), 0.055, C_UTER),                 // 1 uterine body
+      sph(V3(-0.20, 0.82, 0.09), 0.035, C_UTER),              // 2 horn L
+      sph(V3(-0.15, 0.85, 0.14), 0.030, C_OVA, [0.04, 0.032, 0.03]), // 3 ovary L
+      sph(V3(-0.20, 0.82, -0.09), 0.035, C_UTER),             // 4 horn R
+      sph(V3(-0.15, 0.85, -0.14), 0.030, C_OVA, [0.04, 0.032, 0.03]), // 5 ovary R
+      sph(V3((-0.34 + u.x) / 2, (0.75 + u.y) / 2, 0), 0.030, C_UTER), // 6 vagina mid
+      sph(u, 0.030, C_UTER)                                    // 7 vulva (at the urinary hole)
+    ];
+    fuse(mareSkin, sp, [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [0, 6], [6, 7]]);
+  }
+  function vis(o) { while (o) { if (!o.visible) return false; o = o.parent; } return true; }
+  var tubeSig = '', sysSig = { gut: '', urin: '', mare: '' }, sysAt = 0, curveSig = '';
   function rebuildTubes() {
     var an = holeOf('anal'), ur = holeOf('urinary'), male = (sexNow() === 'male') || (show.stallion && !show.mare);
-    var key = [an && an.toArray().map(function (v) { return v.toFixed(3); }), ur && ur.toArray().map(function (v) { return v.toFixed(3); }), male].join('|');
-    if (key === tubeSig) return; tubeSig = key;
-    digestiveCurve.points[digestiveCurve.points.length - 1].copy(an || gutEnd0);
-    digestiveCurve.updateArcLengths();
-    esophMesh.geometry.dispose(); esophMesh.geometry = new THREE.TubeGeometry(digestiveCurve, 60, 0.040, 12, false);
-    var vul = ur || V3(-0.54, 0.68, 0), bl = V3(-0.20, 0.72, 0);
-    tube(vagina, [V3(-0.34, 0.75, 0), V3(-0.44, 0.72, 0), V3(vul.x + 0.04, vul.y + 0.01, vul.z), vul], 0.03);
-    // urethra: mare ends at the vestibule inside the vulva; stallion runs down the pelvis and along the sheath
-    var uPts = male ? [bl, V3(-0.24, 0.64, 0), V3(-0.19, 0.58, 0), V3(-0.08, 0.56, 0), V3(0.03, 0.54, 0)] : [bl, V3(-0.30, 0.70, 0), V3(-0.46, 0.69, 0)];
-    if (ur) uPts = male ? [bl, V3(-0.24, 0.64, 0), V3(-0.19, 0.58, 0), ur] : [bl, V3(-0.30, 0.70, 0), ur];
-    tube(urethra, uPts, 0.016);
-    tube(vasL, [V3(-0.16, 0.60, 0.065), V3(-0.19, 0.66, 0.04), V3(-0.23, 0.66, 0.0)], 0.009);
-    tube(vasR, [V3(-0.16, 0.60, -0.065), V3(-0.19, 0.66, -0.04), V3(-0.23, 0.66, 0.0)], 0.009);
+    if (an) an = toOrgan(an); if (ur) ur = toOrgan(ur);
+    var jawM = nodeMesh('jaw'), mouth = jawM ? toOrgan(jawM.position.clone().add(new THREE.Vector3(0.119, -0.053, 0))) : null;
+    var f2 = function (p) { return p ? p.toArray().map(function (v) { return v.toFixed(2); }).join(',') : '-'; };
+    var ck = f2(an) + '|' + f2(mouth);
+    if (ck !== curveSig) { // the contraband path follows the same ends as the visible gut
+      curveSig = ck;
+      if (mouth) digestiveCurve.points[0].copy(mouth);
+      digestiveCurve.points[digestiveCurve.points.length - 1].copy(an || gutEnd0);
+      digestiveCurve.updateArcLengths();
+    }
+    var tnow = (typeof performance !== 'undefined' ? performance : Date).now();
+    if (tnow - sysAt < 160) return; // body moving: spread the rebuilds out
+    var ov = orgVol();
+    var sigs = { gut: ck + '|' + ov.s + '|' + ov.c, urin: f2(ur) + '|' + male + '|' + ov.b, mare: f2(ur) };
+    if (!organGroup.visible) return;
+    var done = false;
+    if (sigs.gut !== sysSig.gut && vis(gutSkin)) { buildGut(an, mouth, ov); sysSig.gut = sigs.gut; done = true; }
+    else if (sigs.urin !== sysSig.urin && vis(urinSkin)) { buildUrinary(ur, male, ov); sysSig.urin = sigs.urin; done = true; }
+    else if (sigs.mare !== sysSig.mare && vis(mareSkin)) { buildMare(ur); sysSig.mare = sigs.mare; done = true; }
+    if (done) sysAt = tnow;
+    if (done && male) {
+      tube(vasL, [V3(-0.16, 0.60, 0.065), V3(-0.19, 0.66, 0.04), V3(-0.23, 0.66, 0.0)], 0.009);
+      tube(vasR, [V3(-0.16, 0.60, -0.065), V3(-0.19, 0.66, -0.04), V3(-0.23, 0.66, 0.0)], 0.009);
+    }
   }
   rebuildTubes();
 
   var parts = {
-    gut: [esophMesh], stomach: [stomachMesh], cecum: [cecumMesh], bladder: [bladderMesh],
-    urinary: [urinaryGroup], mare: [femaleReproGroup], stallion: [maleReproGroup]
+    gut: [gutSkin], urinary: [urinaryGroup], mare: [femaleReproGroup], stallion: [maleReproGroup]
   };
   function applyVis() {
     var any = false, k;
@@ -1813,11 +2000,16 @@ var ORGVIEW = (function () {
     ponyMat.visible = V.skinOn && !V.solo;
     rebuildTubes();
   }
+  V.ghost = false;
+  V.setGhost = function (on) { V.ghost = !!on; ponyMat.transparent = V.ghost; ponyMat.opacity = V.ghost ? 0.22 : 1; ponyMat.depthWrite = !V.ghost; };
   V.html = function () {
+    if (!V._g0) { V._g0 = 1; V.setGhost(true); } // opening the Organs sheet makes the skin see-through the first time
     var b = function (l, js, on) { return '<button class="bbi ' + (on ? 'on' : '') + '" onclick="' + js + '">' + l + '</button>'; };
     var h = b('🐴 Mare', "ORGVIEW.sex('mare')", show.mare && !show.stallion) + b('🐎 Stallion', "ORGVIEW.sex('stallion')", show.stallion && !show.mare) + b('⚥ Both', "ORGVIEW.sex('both')", show.stallion && show.mare) + b('∅ Neither', "ORGVIEW.sex('none')", !show.stallion && !show.mare);
     h += b('🧍 Skin ' + (V.skinOn ? 'ON' : 'off'), 'ORGVIEW.skin()', V.skinOn);
     for (var k in NAMES) h += b(NAMES[k] + (show[k] ? '' : ' (off)'), "ORGVIEW.toggle('" + k + "')", !!show[k]) + b('🔍 Only', "ORGVIEW.only('" + k + "')", V.solo === k);
+    h += b('👻 See-through skin ' + (V.ghost ? 'ON' : 'off'), 'ORGVIEW.toggleGhost()', V.ghost);
+    h += b('🫙 Hollow body ' + (window.SkinFuse && SkinFuse.hollow ? 'ON' : 'off'), 'ORGVIEW.hollow()', !!(window.SkinFuse && SkinFuse.hollow));
     h += b('✂️ Auto-cut when close ' + (V.autoCut ? 'ON' : 'off'), 'ORGVIEW.cut()', V.autoCut) + b('↩ Reset view', 'ORGVIEW.reset()');
     return h;
   };
@@ -1831,14 +2023,16 @@ var ORGVIEW = (function () {
   V.toggle = function (k) { V.active = true; show[k] = show[k] ? 0 : 1; V.solo = null; applyVis(); refresh(); };
   V.only = function (k) { V.active = true; V.solo = (V.solo === k) ? null : k; if (V.solo) show[k] = 1; applyVis(); refresh(); say(V.solo ? 'Showing only: ' + NAMES[k] : 'All parts back'); };
   V.skin = function () { V.active = true; V.skinOn = !V.skinOn; applyVis(); refresh(); };
+  V.toggleGhost = function () { V.setGhost(!V.ghost); refresh(); };
+  V.hollow = function () { if (window.SkinFuse) SkinFuse.setHollow(); refresh(); };
   V.cut = function () { V.autoCut = !V.autoCut; refresh(); say('Auto-cut when close: ' + (V.autoCut ? 'ON — zoom in to open the body' : 'off')); };
   V.reset = function () {
-    V.solo = null; V.skinOn = true; V.autoCut = false; show.gut = show.stomach = show.cecum = show.bladder = show.urinary = 1; show.bones = 0;
+    V.solo = null; V.skinOn = true; V.autoCut = false; V.setGhost(false); show.gut = show.urinary = 1; show.bones = 0;
     clipPlane.normal.set(0, 0, 1); clipPlane.constant = 100; applyVis(); refresh(); say('View reset: cutaway closed, skin on');
   };
   var cutOn = false, _c = new THREE.Vector3(), _n = new THREE.Vector3();
   V.apply = function () {
-    HoleTool.frame(); rebuildTubes();
+    rigUpdate(); HoleTool.frame(); rebuildTubes();
     if (!V.autoCut) { if (cutOn) { clipPlane.normal.set(0, 0, 1); clipPlane.constant = 100; cutOn = false; } return; }
     var close = (typeof camAngle !== 'undefined') && camAngle.dist < 2.8;
     if (close) { // remove only the half of the skin facing the camera, organs stay whole
@@ -2138,8 +2332,7 @@ const ORGAN_BAG = {
     const rear = bodyMeshes.find(b => b.name === 'rear');
     if (!chest || !rear) return;
 
-    // Keep organGroup nestled inside the ribcage/pelvic cavity (local 0,0,0)
-    organGroup.position.set(0, 0, 0);
+    // organGroup is placed every frame by ORGVIEW's organ rig (follows the chest and rear nodes)
 
     // Dynamic Volume Feedback: Organ fullness pushes outward against the bag
     const totalVol = ORGANS.getTotalVolume();
@@ -6419,12 +6612,12 @@ function apply(){
     const rc=RESTL[idx.chest],rr=RESTL[idx.rear],cc=L[idx.chest],cr=L[idx.rear],Bc=frame(L),Br=frame(RESTL),
       a=new THREE.Vector3(rr[0]-rc[0],rr[1]-rc[1],rr[2]-rc[2]).normalize(),b=new THREE.Vector3(cr[0]-cc[0],cr[1]-cc[1],cr[2]-cc[2]).normalize(),
       q=(Bc&&Br)?new THREE.Quaternion().setFromRotationMatrix(Bc).multiply(new THREE.Quaternion().setFromRotationMatrix(Br).invert()):new THREE.Quaternion().setFromUnitVectors(a,b),o=new THREE.Vector3(rc[0],rc[1],rc[2]).applyQuaternion(q);
-    organGroup.quaternion.copy(q);organGroup.position.set(cc[0]-o.x+SL[0]*.6,cc[1]-o.y+SL[1]*.6,cc[2]-o.z+SL[2]*.6);
+    /* organs are placed by ORGVIEW's organ rig now */
     if(Bc&&Br){const uc=new THREE.Vector3(),ur=new THREE.Vector3(),m=new THREE.Matrix4();uc.setFromMatrixColumn(Bc,2);ur.setFromMatrixColumn(Br,2);DY.upDot=uc.y*(ur.y>=0?1:-1)}
     if(DY.cb)try{DY.cb(DY)}catch(e){}}}
 function restore(){
   RESTL.forEach((r,i)=>{const s=SPHERES[i];if(!s)return;s.x=r[0];s.y=r[1];s.z=r[2];if(bodyMeshes[i])bodyMeshes[i].mesh.position.set(r[0],r[1],r[2])});
-  if(typeof organGroup!=="undefined"){organGroup.quaternion.set(0,0,0,1);organGroup.position.set(0,0,0)}cube.visible=false}
+  cube.visible=false}
 function loop(now){requestAnimationFrame(loop);if(!state||(typeof simSpeed!=="undefined"&&simSpeed===0)){last=now;return}
   acc+=Math.min(.05,(now-last)/1000);last=now;let n=0;while(acc>=DT&&n++<3){step();acc-=DT}apply()}
 const rc=new THREE.Raycaster(),pl=new THREE.Plane(),v=new THREE.Vector3(),w=new THREE.Vector3();
@@ -6520,12 +6713,13 @@ function ground(x,y){
   const h=raycaster.intersectObject(groundMesh);return h.length?h[0].point:null;
 }
 function onPony(x,y){mouse.x=x/innerWidth*2-1;mouse.y=-(y/innerHeight)*2+1;raycaster.setFromCamera(mouse,camera);return raycaster.intersectObjects(characterGroup.children,true).length>0}
-function begin(){if(window.EWS_moveLocked)return;if(sid==null||P.size!==1)return;steer=true;if(base==null)base=walkSpeed;follow(true)}
+function begin(){if(window.EWS_moveLocked||window.holeToolOn)return;if(sid==null||P.size!==1)return;steer=true;if(base==null)base=walkSpeed;follow(true)}
 function follow(force){const pt=ground(lx,ly);if(!pt)return;const now=performance.now();
   if(!force&&lastPt&&Math.hypot(pt.x-lastPt.x,pt.z-lastPt.z)<.04&&now-lastT<300)return;
   lastPt={x:pt.x,z:pt.z};lastT=now;setWalkDestination(pt);
-  const d=Math.hypot(pt.x-characterGroup.position.x,pt.z-characterGroup.position.z);walkSpeed=base*(.7+Math.min(1.6,d/3))}
-function end(){if(base!=null){walkSpeed=base;base=null}steer=false;sid=null;lastPt=null;clearTimeout(tm)}
+  const d=Math.hypot(pt.x-characterGroup.position.x,pt.z-characterGroup.position.z);walkSpeed=base*(.6+Math.min(.9,d/2.5))}
+function end(){if(steer&&typeof walkTarget!=="undefined"&&walkTarget){const cx=characterGroup.position.x,cz=characterGroup.position.z,dx=walkTarget.x-cx,dz=walkTarget.z-cz,d=Math.hypot(dx,dz)||1,m=Math.min(d,.2);walkTarget.set(cx+dx/d*m,0,cz+dz/d*m);try{targetRing.material.opacity=0}catch(e){}} /* lift your finger = she settles in about 20cm */
+  if(base!=null){walkSpeed=base;base=null}steer=false;sid=null;lastPt=null;clearTimeout(tm)}
 addEventListener("pointerdown",e=>{if(ui(e))return;if(window.EWS_rag&&window.EWS_rag.state)return;
   P.set(e.pointerId,[e.clientX,e.clientY]);
   if(P.size>=2){

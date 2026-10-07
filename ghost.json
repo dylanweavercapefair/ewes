@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""
+GHOST Management Tool (EWS-GHOST/1)
+Maintains GHOST.md strictly under the 4,096-byte limit, manages session notes, and reports health.
+"""
+import sys
+import os
+import re
+from datetime import datetime
+
+CAP_BYTES = 4096
+
+def find_ghost_path():
+    candidates = [
+        'GHOST.md',
+        '../GHOST.md',
+        'ew-sim/GHOST.md',
+        '../ew-sim/GHOST.md',
+        '/working_dir/c_ccdcb08853c1cb2f/GHOST.md'
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return os.path.abspath(p)
+    return 'GHOST.md'
+
+def get_ghost_content():
+    path = find_ghost_path()
+    if not os.path.isfile(path):
+        return None, path
+    with open(path, 'r', encoding='utf-8') as f:
+        return f.read(), path
+
+def check_health():
+    content, path = get_ghost_content()
+    if content is None:
+        print(f"ERROR: GHOST.md not found at {path}")
+        return False
+    size = len(content.encode('utf-8'))
+    first_line = content.split('\n')[0] if content else ''
+    print(first_line)
+    pct = (size / CAP_BYTES) * 100
+    status = "OK" if size <= CAP_BYTES else "OVER_CAP"
+    print(f"GHOST size: {size}/{CAP_BYTES} bytes ({pct:.1f}%) [{status}]")
+    return size <= CAP_BYTES
+
+def add_note(note_text):
+    content, path = get_ghost_content()
+    if content is None:
+        print(f"ERROR: Cannot add note, GHOST.md not found at {path}")
+        return False
+    
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    lines = content.split('\n')
+    
+    # Update date on health line
+    if lines and lines[0].startswith('@state'):
+        lines[0] = re.sub(r'date=\d{4}-\d{2}-\d{2}', f'date={date_str}', lines[0])
+    
+    # Append to LOG section
+    log_idx = -1
+    for i, line in enumerate(lines):
+        if line.strip().startswith('## LOG'):
+            log_idx = i
+            break
+            
+    note_line = f"- {date_str} {note_text}"
+    if log_idx != -1:
+        lines.insert(log_idx + 1, note_line)
+    else:
+        lines.append(f"## LOG\n{note_line}")
+        
+    updated = '\n'.join(lines)
+    # Check if exceeds cap, if so prune old log lines
+    while len(updated.encode('utf-8')) > CAP_BYTES:
+        last_log = None
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip().startswith('- 202'):
+                last_log = i
+                break
+        if last_log and last_log > (log_idx + 3):
+            del lines[last_log]
+            updated = '\n'.join(lines)
+        else:
+            break
+            
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(updated)
+        
+    print(f"Added note: {note_line}")
+    check_health()
+    return True
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == 'note':
+        note = ' '.join(sys.argv[2:]) if len(sys.argv) > 2 else 'Routine update'
+        add_note(note)
+    else:
+        ok = check_health()
+        sys.exit(0 if ok else 1)

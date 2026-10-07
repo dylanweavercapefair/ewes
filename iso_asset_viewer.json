@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Iso Asset Viewer</title>
+<style>
+:root{--bg:#dfe8dc;--fg:#1d2a22;--card:#fff;--ac:#3b6e5a;--ln:#9db3a4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c2420;--fg:#e6efe8;--card:#2a352f;--ac:#7fc2a5;--ln:#46564c}}
+:root[data-theme="dark"]{--bg:#1c2420;--fg:#e6efe8;--card:#2a352f;--ac:#7fc2a5;--ln:#46564c}
+html,body{height:100%;margin:0}body{background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif;display:flex;flex-direction:column}
+#vp{flex:1;min-height:0;width:100%;touch-action:none}#pn{background:var(--card);border-top:1px solid var(--ln);padding:8px;max-height:45%;overflow-y:auto}
+.r{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;align-items:center}button{min-height:44px;min-width:44px;font:inherit;border:1px solid var(--ln);border-radius:10px;background:var(--bg);color:var(--fg);padding:0 10px}button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+input,select{min-height:44px;font:inherit;border:1px solid var(--ln);border-radius:10px;background:var(--bg);color:var(--fg);padding:0 8px;box-sizing:border-box}input{flex:1;min-width:120px}textarea{width:100%;height:120px;font:12px monospace;background:var(--bg);color:var(--fg);box-sizing:border-box}.h{font-size:12px;opacity:.75}img.cap{max-width:100%;border:1px dashed var(--ln)}
+</style></head><body>
+<svg id="vp" xmlns="http://www.w3.org/2000/svg"><g id="grid"></g><g id="asset"></g><g id="ref"></g></svg>
+<div id="pn"><div class="r" id="b1"></div><div class="r" id="b2"></div><div class="r"><input id="nm" placeholder="Name (e.g. Mess Table)"><select id="cat"><option>Building</option><option>Wall</option><option>Furniture</option><option>Tile</option><option>Landscape</option><option>Prop</option></select></div><div class="r" id="b3"></div><div id="lst"></div><textarea id="js" spellcheck="false" placeholder="Registry JSON appears here (Show JSON), or paste JSON here and press Load JSON." style="height:80px"></textarea><textarea id="code" spellcheck="false" placeholder="Paste SVG code here (what an AI gives you). Origin (0,0) is the centre of the ground tile, y points down, tile = 64x32."></textarea><div class="h" id="msg">Asset Viewer 0.3 (4 Oct 2026). Drag to pan, buttons to zoom. Paste SVG, press Run, name it, press Save.</div><div id="out"></div></div>
+<script>
+const NS='http://www.w3.org/2000/svg',$=i=>document.getElementById(i),vp=$('vp');
+const el=(t,a={},p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+let z=1,cx=0,cy=-40,tiles=3,gridOn=true,refOn=true,over=false;
+const SAMPLE=`<g stroke="#2b2118" stroke-width="1.5" stroke-linejoin="round">
+<polygon points="-32,-36 0,-20 0,16 -32,0" fill="#a9733f"/>
+<polygon points="32,-36 0,-20 0,16 32,0" fill="#8a5a30"/>
+<polygon points="0,-52 32,-36 0,-20 -32,-36" fill="#c99a62"/>
+<path d="M-32,-18 L0,-2 M32,-18 L0,-2 M0,-36 L0,-20" fill="none" stroke-width="1"/></g>`;
+function view(){const r=vp.getBoundingClientRect(),w=r.width/z,h=r.height/z;vp.setAttribute('viewBox',`${cx-w/2} ${cy-h/2} ${w} ${h}`)}
+function grid(){const g=$('grid');g.textContent='';if(!gridOn)return;const n=tiles;for(let i=-n;i<=n;i++)for(let j=-n;j<=n;j++){const x=(i-j)*32,y=(i+j)*16,c=!i&&!j;el('path',{d:`M${x} ${y-16}L${x+32} ${y}L${x} ${y+16}L${x-32} ${y}Z`,fill:c?'#ffffff44':'none',stroke:c?'#2a6a50':'#00000030','stroke-width':c?1.2:.6},g)}
+ const g2=$('ref');g2.textContent='';if(refOn){for(const [n,t] of [[1,'1 level = 32px = pony body height (owner confirmed 4 Oct); wall/block'],[2,'2 levels = 64px = alicorn / tall things']]){el('line',{x1:-90,y1:-32*n,x2:90,y2:-32*n,stroke:n==1?'#c33':'#c77','stroke-dasharray':'3 3','stroke-width':.8},g2);el('text',{x:-88,y:-32*n-3,'font-size':6,fill:'#c33'},g2).textContent=t}el('line',{x1:-6,y1:0,x2:6,y2:0,stroke:'#c33'},g2);el('line',{x1:0,y1:-6,x2:0,y2:6,stroke:'#c33'},g2)}
+ vp.insertBefore($('grid'),over?null:$('asset'));if(over)vp.insertBefore($('grid'),$('ref'))}
+function clean(r){r.querySelectorAll('script,foreignObject,iframe,object,image').forEach(n=>n.remove());r.querySelectorAll('*').forEach(e=>[...e.attributes].forEach(t=>{const n=t.name.toLowerCase(),v=t.value;if(n.startsWith('on')||(/href$/.test(n)&&v[0]!='#')||/url\((?!#)/i.test(v))e.removeAttribute(t.name)}));return r}
+function cleanSvg(str){const d=new DOMParser().parseFromString(str,'image/svg+xml');if(d.querySelector('parsererror')||d.documentElement.nodeName!='svg')return null;return new XMLSerializer().serializeToString(clean(d.documentElement))}
+const REG='av_reg1',rd=()=>{try{return JSON.parse(localStorage.getItem(REG)||'{}')}catch(e){return{}}},wr=o=>{try{localStorage.setItem(REG,JSON.stringify(o));return true}catch(e){$('msg').textContent='This browser blocked saving. Use Show JSON and copy it out.';return false}};
+function save(){run();const n=$('nm').value.trim(),a=$('asset');if(!n){$('msg').textContent='Type a name first.';return}let bb;try{bb=a.getBBox()}catch(e){}if(!bb||!bb.width){$('msg').textContent='Nothing to save. Run some SVG first.';return}
+ const p=3,x=Math.floor(bb.x-p),y=Math.floor(bb.y-p),w=Math.ceil(bb.width+2*p),h=Math.ceil(bb.height+2*p),key=n.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')+'_N',r=rd();
+ r[key]={key,name:n,category:$('cat').value,svg:`<svg xmlns="${NS}" viewBox="${x} ${y} ${w} ${h}" width="${w}" height="${h}">${a.innerHTML}</svg>`,w,h,anchor:[-x,-y],heightPx:Math.max(0,Math.round(-bb.y))};
+ if(wr(r)){$('msg').textContent='Saved as '+key+' ('+w+'x'+h+'px, '+r[key].heightPx+'px tall above the ground centre)';lst()}}
+function lst(){const L=$('lst'),r=rd();L.textContent='';for(const k in r){const row=document.createElement('div');row.className='r';const s=document.createElement('span');s.textContent=r[k].name+' ('+r[k].category+')';s.style.flex='1';row.appendChild(s);L.appendChild(row);
+ const bt=(t,f)=>{const x=document.createElement('button');x.textContent=t;x.onclick=f;row.appendChild(x)};bt('Load',()=>{$('code').value=r[k].svg.replace(/^<svg[^>]*>|<\/svg>$/g,'');$('nm').value=r[k].name;run()});bt('Delete',()=>{delete r[k];wr(r);lst()})}}
+function imp(){let o;try{o=JSON.parse($('js').value)}catch(e){$('msg').textContent='That is not valid JSON.';return}const r=rd();let n=0,bad=0;for(const k in o){const e=o[k];const sv=e&&typeof e.svg=='string'?cleanSvg(e.svg):null;if(!sv||typeof e.name!='string'){bad++;continue}r[k]={...e,key:k,svg:sv};n++}wr(r);lst();$('msg').textContent='Loaded '+n+' asset(s)'+(bad?', skipped '+bad+' that were broken':'')}
+function run(){const a=$('asset');a.textContent='';try{const d=new DOMParser().parseFromString('<svg xmlns="'+NS+'">'+$('code').value+'</svg>','image/svg+xml');if(d.querySelector('parsererror'))throw new Error('SVG has a syntax error');[...clean(d.documentElement).childNodes].forEach(n=>a.appendChild(document.importNode(n,true)));$('msg').textContent='Ran OK';try{localStorage.setItem('av1',$('code').value)}catch(e){}}catch(e){$('msg').textContent='Error: '+e.message}}
+const b=(p,t,f,on)=>{const x=document.createElement('button');x.textContent=t;if(on)x.className='on';x.onclick=f;$(p).appendChild(x)};
+function ui(){$('b1').textContent='';$('b2').textContent='';b('b1','▶ Run',run);b('b1','Sample crate',()=>{$('code').value=SAMPLE;run()});b('b1','Clear',()=>{$('code').value='';run()});
+ b('b1','Zoom +',()=>{z*=1.25;view()});b('b1','Zoom −',()=>{z/=1.25;view()});b('b1','Reset view',()=>{z=1;cx=0;cy=-40;view()});
+ b('b2','Grid',()=>{gridOn=!gridOn;grid();ui()},gridOn);b('b2','Height guide',()=>{refOn=!refOn;grid();ui()},refOn);b('b2','Grid on top',()=>{over=!over;grid();ui()},over);b('b2','Bigger grid',()=>{tiles=tiles>=6?2:tiles+1;grid()});
+ b('b2','Capture PNG',cap);$('b3').textContent='';b('b3','💾 Save to registry',save);b('b3','Show JSON',()=>{$('js').value=JSON.stringify(rd(),null,1)});b('b3','Load JSON',imp)}
+function cap(){const s=vp.cloneNode(true),V=vp.viewBox.baseVal,W=1024,H=Math.round(W*V.height/V.width);s.setAttribute('width',W);s.setAttribute('height',H);const u=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(s)],{type:'image/svg+xml'})),im=new Image();
+ im.onload=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').drawImage(im,0,0,W,H);$('out').innerHTML='<img class="cap" src="'+c.toDataURL('image/png')+'"><div class="h">Press and hold to save.</div>'};im.src=u}
+let d=null;vp.addEventListener('pointerdown',e=>{d=[e.clientX,e.clientY]});vp.addEventListener('pointermove',e=>{if(!d)return;cx-=(e.clientX-d[0])/z;cy-=(e.clientY-d[1])/z;d=[e.clientX,e.clientY];view()});addEventListener('pointerup',()=>d=null);addEventListener('resize',view);
+try{$('code').value=localStorage.getItem('av1')||SAMPLE}catch(e){$('code').value=SAMPLE}
+grid();ui();lst();view();run();
+</script></body></html>

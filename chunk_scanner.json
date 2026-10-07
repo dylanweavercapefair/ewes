@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""
+EWS Chunk Scanner & AI Context Dispatcher (EWS-CHUNK/1)
+Prevents context-window blowouts and AI hallucination by scanning, verifying,
+and dispatching modular design chunks on demand.
+"""
+import sys
+import os
+import re
+import hashlib
+from datetime import datetime
+
+def find_master_index():
+    candidates = ['MASTER_INDEX.md', '../MASTER_INDEX.md', 'ew-sim/MASTER_INDEX.md']
+    for c in candidates:
+        if os.path.isfile(c):
+            return os.path.abspath(c)
+    return None
+
+def parse_chunks():
+    path = find_master_index()
+    if not path:
+        return {}, "MASTER_INDEX.md not found"
+        
+    with open(path, 'r', encoding='utf-8') as f:
+        content = f.read()
+        
+    chunks = {}
+    
+    # 1. Parse comment bounded chunks <!-- CHUNK:NAME START --> ... <!-- CHUNK:NAME END -->
+    comment_pattern = re.compile(r'<!--\s*(CHUNK:[A-Z0-9_]+)\s*START\s*-->([\s\S]*?)<!--\s*\1\s*END\s*-->', re.IGNORECASE)
+    for m in comment_pattern.finditer(content):
+        tag = m.group(1).upper()
+        chunk_text = m.group(2).strip()
+        chunks[tag] = chunk_text
+
+    # 2. Parse section header chunks ## N. [CHUNK:NAME] ...
+    section_pattern = re.compile(r'##\s*\d*\.?\s*\[(CHUNK:[A-Z0-9_]+)\]([^\n]*)\n([\s\S]*?)(?=(?:\n##|\Z))', re.IGNORECASE)
+    for m in section_pattern.finditer(content):
+        tag = m.group(1).upper()
+        title = m.group(2).strip()
+        body = m.group(3).strip()
+        if tag not in chunks:
+            chunks[tag] = f"## [{tag}] {title}\n{body}"
+            
+    return chunks, path
+
+def cmd_list():
+    chunks, path = parse_chunks()
+    if not chunks:
+        print(f"Error: {path}")
+        return
+    print(f"EWS Chunk Registry ({len(chunks)} chunks registered in {os.path.basename(path)}):\n")
+    print(f"{'TAG':<28} | {'SIZE (BYTES)':<12} | {'SHA-256 (FIRST 8)':<18}")
+    print("-" * 65)
+    for tag, text in sorted(chunks.items()):
+        size = len(text.encode('utf-8'))
+        sha = hashlib.sha256(text.encode('utf-8')).hexdigest()[:8]
+        print(f"{tag:<28} | {size:<12} | {sha:<18}")
+
+def cmd_get(tag):
+    chunks, _ = parse_chunks()
+    clean_tag = tag.upper()
+    if not clean_tag.startswith("CHUNK:"):
+        clean_tag = "CHUNK:" + clean_tag
+        
+    if clean_tag in chunks:
+        sha = hashlib.sha256(chunks[clean_tag].encode('utf-8')).hexdigest()
+        print(f"/* ===== [PAYLOAD: {clean_tag}] SHA-256:{sha[:12]} ===== */")
+        print(chunks[clean_tag])
+        print(f"/* ===== [END PAYLOAD: {clean_tag}] ===== */")
+    else:
+        print(f"Error: Chunk '{clean_tag}' not found. Available chunks: {', '.join(chunks.keys())}")
+
+def cmd_ledger():
+    chunks, path = parse_chunks()
+    ledger = {
+        "timestamp": datetime.now().isoformat(),
+        "source": path,
+        "total_chunks": len(chunks),
+        "chunks": {}
+    }
+    for tag, text in chunks.items():
+        ledger["chunks"][tag] = {
+            "bytes": len(text.encode('utf-8')),
+            "sha256": hashlib.sha256(text.encode('utf-8')).hexdigest()
+        }
+    import json
+    print(json.dumps(ledger, indent=2))
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2 or sys.argv[1] == 'list':
+        cmd_list()
+    elif sys.argv[1] == 'get' and len(sys.argv) > 2:
+        cmd_get(sys.argv[2])
+    elif sys.argv[1] == 'ledger':
+        cmd_ledger()
+    else:
+        print("Usage: chunk_scanner.py [list | get <TAG> | ledger]")

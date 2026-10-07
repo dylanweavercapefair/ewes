@@ -1,0 +1,54 @@
+# EWS UNIVERSAL RIG & NODE MAPPING GUIDE (EWS-MAP/1)
+*The Rosetta Stone for 3D Modeling, Modding, Story Visuals, and AI Verification*
+
+---
+
+## 1. PURPOSE & WHY THIS PREVENTS ENGINE COLLAPSE
+When modeling, creating mods, or scripting story sequences in the visual editor, nodes will naturally be nudged, added, or renamed. Without a semantic mapping guide, hardcoded scripts break whenever a node name changes.
+
+This mapping guide provides a **semantic layer of abstraction**:
+- Story editors, clothing mods, and combat hitboxes reference **Sockets** and **Roles** (e.g., `socket_hat` or `role_head`), never volatile raw indices.
+- If Dylan adds an extra neck joint or renames `head` to `skull_main`, the mapping guide updates the target node mapping, and **all story scenes, clothing mods, and hair splines stay perfectly connected**.
+
+---
+
+## 2. ANATOMICAL SOCKETS & MOD ATTACHMENT MAP
+| Socket Identifier | Primary Anchor | Purpose / Mod Attachment |
+|---|---|---|
+| `socket_hat` | `head` | Helmets, caps, goggles, eyewear |
+| `socket_horn` | `head` | Unicorn magic horns, head armor plating |
+| `socket_crest_mane` | `head -> chest` | Nape/crest hair spline ribbons |
+| `socket_forelock` | `head` | Brow bangs and forehead tufts |
+| `socket_tail` | `pelvis` | Tail plumes, ribbons, armor guards |
+| `socket_saddle` | `chest` | Saddles, packs, harnesses, barding |
+| `socket_left_wing` | `chest` | Pegasus left wing armature |
+| `socket_right_wing` | `chest` | Pegasus right wing armature |
+| `socket_hoof_FL/FR` | `FL4 / FR4` | Horseshoes, combat wraps, boots |
+| `socket_hoof_BL/BR` | `BL4 / BR4` | Hind horseshoes, caltrops, armor |
+| `socket_organ_bag` | `chest + rear` | Centroid boundary for all internal viscera |
+
+---
+
+## 3. TREE HIERARCHY & PARENT-CHILD GRAPH
+```
+[chest] (ROOT)
+ ├── [head]
+ │    ├── [muzzle]
+ │    ├── [jaw]
+ │    ├── [cheekL]
+ │    └── [cheekR]
+ ├── [rear]
+ │    ├── [pelvis]
+ │    ├── [BL0] ──> [BL1] ──> [BL2] ──> [BL3] ──> [BL4]
+ │    └── [BR0] ──> [BR1] ──> [BR2] ──> [BR3] ──> [BR4]
+ ├── [FL1] ──> [FL2] ──> [FL3] ──> [FL4]
+ └── [FR1] ──> [FR2] ──> [FR3] ──> [FR4]
+```
+
+---
+
+## 4. DYNAMIC SCRUTINY VALIDATION (tools/rig_math_gate.py)
+The Pre-Flight Scrutiny Gate reads `node_map.json` to dynamically validate any incoming model or mod:
+1. **Tree Connectivity:** Confirms no orphan nodes or disconnected branches.
+2. **Socket Resolution:** Confirms every story socket points to a valid physical node.
+3. **Symmetry Matching:** Automatically verifies mirrored pairs without hardcoding.

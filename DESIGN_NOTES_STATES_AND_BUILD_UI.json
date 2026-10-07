@@ -1,0 +1,18 @@
+# DESIGN NOTES (owner, 5 Oct 2026) - NOTE ONLY, NOT BUILT
+## Game states (the basis of the sim)
+1. LIVE = just the game.
+2. PAUSED.
+3. EDIT / BUILD = something in the game world is being edited. Tools get appended here.
+4. SELECT = identify anything in view: inspect, export, see what it links to. Paired with the INTIMATE INTERACTION MENU (vital mechanic).
+   Entity version of Select lives in LIVE mode: dissection, needs, social check-in, live inspection of game data. Comes AFTER the game works and the school project is done.
+## Build-mode UI
+- The revolver is the home of all tiled menus in the game. Build is the exception: it needs special tools, so it may have its own UI.
+- Transform GIZMO (Move / Rotate / Scale, the sphere-layout gizmo) can be deployed from the Build menu, ON SCREEN BY DEFAULT, and is only visible while EDIT is active. Append the transform tool there.
+- Wanted: toggle between ball (geometry) view and mesh view while in Build/Edit/Select. Toggle between edit / transform / rotate gizmos.
+- Do NOT change the existing revolver state or its six bullets.
+## Done this session (untested on iPad)
+Dynamics (tension, avoid points, slosh, body frame), hold-to-pick-up, horse-walk leg gait, finger steering (1 finger moves, 2 fingers orbit), limb tubes (EWS_limbs.on), facing fix (model front is +x), catch-lean after letting go.
+## Open bugs / questions
+- "+ Hole" then Move broke the model instantly (not reproduced; need the on-screen message).
+- Legs are tubes+balls, not the editor's smooth-blend skin yet.
+- Ask owner for the vault physics + Game Master rules file; none seen so far.

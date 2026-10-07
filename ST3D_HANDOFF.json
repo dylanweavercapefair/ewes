@@ -1,0 +1,80 @@
+# ST3D HANDOFF (resume file) — updated 5 Oct 2026
+Say "we're back" in a new chat with these files attached: ST3D_SPEC.md, ST3D_HANDOFF.md, pony_blockout_v2.json, pony_2d_vs_3d.html (+ the game zip if needed).
+
+## Where we are
+- Stage 1 DONE: spec, schema blockout/2, migrated pony data (24 nodes: 23 spheres + 1 neck tube).
+- Viewer prototype exists: pony_2d_vs_3d.html (left = legacy 2.5D file math, right = true 3D). Published copy: https://claude.ai/artifact/89ymBhavE7412deQZbGqPj (loads three.js from cdnjs; not offline).
+- Stage 2 DONE (owner: "I like it a lot", 5 Oct 2026).
+- Stage 3 BUILT (now v0.4.0; history: v0.3.1: muzzle removed from the model, Rotate/Scale handles, view row Free/Iso/Front/Side/Top, tap no longer drops to low-res; autosave key is now st3d.model2; was v0.3.0, st3d_viewport.html), NOT run in any browser by the AI that wrote it, NOT tested on iPad. Test: build a leg from two balls.
+- Stage 3 has: move gizmo (X red, Y green, Z blue, 44px handles, drag along the arrow), + Ball (child of selected, hangs below it), Copy, Delete (children re-parent), Snap (off/0.01/0.05/0.125/0.25/0.5, default 0.05, applies to the dragged axis), Mirror (moves partner by the same offset with y flipped, also copies Size), Floor lock (default on, sphere bottom never below z=0), Undo/Redo (50), Size slider (radius of selected sphere), JSON box (shows + copies model JSON; Load from box; Factory = original pony), autosave to localStorage key st3d.model (restored on open; Factory resets).
+- Owner approved (5 Oct) conservative, tasteful extra buttons in build/edit/select UI; Gemini may later impose its own UI rules. Keep additions small.
+- Rotate = Euler angles per axis (rot, degrees, order Rz*Ry*Rx, 5 deg steps when Snap is on); the surface really rotates ellipsoids. Scale = per-axis scale along the part's own axes. Mirror copies scale and mirrors rotation (-x, y, -z). Floor lock ignores rotation. Tool button cycles Move/Rotate/Scale.
+- Owner note 5 Oct: pasted JSON was identical to the original (the Leg/Body sliders only change the picture, not the data; a "bake" option is not built). Owner dislikes the head shape; not changed yet, owner will show the 2.5D style form.
+- Unconfirmed bug report: "green spray" on second tap; not reproduced; suspected low-res highlight speckle (fixed) or the green Y handle.
+- v0.4.0 HOLE: node type "cut" (ellipsoid with pos/rot/scale/r) is smooth-SUBTRACTED from the node surface. "+ Hole" adds two cuts on the rear: "hole" (elongated opening, back of the rear sphere) and "bag" (hollow inside). Cuts are drawn as orange dashed circles (tap one to select; it uses the same Move/Rotate/Scale/Size). Slice button cuts the model at y=0 so the inside is visible. Cut insides are tinted dark rose. Max 8 cuts. GEOMETRY ONLY: no liquid, no tube path, no volume bookkeeping yet (that is Stage 5; model is Stable-Tec_PassThrough_Proof.html). Not run in any browser, untested on iPad.
+- NOT built yet: Parent tool, Plant hooves, Isolate, Ghost others, creating mirror pairs, node types other than sphere/tube/anchor. Max 40 spheres and 40 links.
+- Stage 2 facts still true: smooth node surface, no three.js, offline; tap-select; Iso preview; UI scale 1.0-1.6x.
+
+## Decision 5 Oct 2026 (surface method)
+Owner requires: smooth joints, per-node width/leg thickness, edge-loop-style control, some sculpting, editable curves, and EVENTUALLY a real vertex editor (very important). Face/muzzle may need true mesh.
+Plan: three layers, all driven by the node tree.
+1. NODE SURFACE (Stage 2): nodes blend with a smooth union (soft-min) so joints are smooth; k = smoothness. Prototype: pony_smooth_nodes.html (GPU raymarch, untested on iPad). Per-node radius/scale/width.
+2. PROFILE NODES (Stage 3-4): limbs/neck/muzzle follow a curve through nodes with ring profiles (width, depth, taper, rotation) = edge-loop-like control without a mesh.
+3. BAKE TO MESH (Stage 6): extract a real mesh (marching cubes) from the node surface, then vertex/edge/face tools, loop cut, soft sculpt brush, mirror. Vertex weights come from node influence so the baked mesh still animates. Store as optional `mesh` per part in blockout/2 (schema addition, not yet written).
+Status: viewer prototypes only (pony_2d_vs_3d.html faceted, pony_smooth_nodes.html smooth). Published smooth demo: https://claude.ai/artifact/UVt4fpr9yVCiErwJ456ekC
+Open question: does the smooth demo run fast enough on the owner's iPad (it lowers resolution while dragging)?
+
+
+## Physics decision 5 Oct 2026
+Owner wants live-testable ragdoll in the game: collide with surfaces and other avatars, grab and drop, an object travels mouth -> throat -> stomach -> intestine -> out the back, bag/fluid hierarchy working, same game as lighting and the fluid pipeline.
+Plan: custom position-based (Verlet/PBD) solver on the node spheres (nodes = particles, parent links = distance constraints, min-distance limits stop limbs folding, sphere-sphere + ground collision, finger-spring grab). No engine dependency, fits the node data.
+Tract = a path through live body nodes (mouth, pharynx, esophagus, cardia, stomach, intestine, exit); a swallowed item follows it with a stomach dwell. Bag hierarchy (stomach/bladder/uterus under one peritoneal capacity) drives node scale so the smooth surface bulges. Not built yet: bag pressure/fluids, avatar-vs-avatar, lighting, the game's fluid pipeline (game code not seen this session).
+Prototype: pony_ragdoll_lab.html (canvas, untested on iPad; the cube is a ball collider). Published: https://claude.ai/artifact/2MM7tthsWp163uPdkeCyfC
+Content rule: reproductive anatomy and breeding mechanics apply to adult characters only.
+
+
+## Cavity/fluid decision 5 Oct 2026
+Stable-Tec_PassThrough_Proof.html (in this bundle, origin unclear, owner uploaded it) is the model for Stage 5. A body ellipsoid with an internal bag + tube is ONE signed-distance field; the picture and the liquid particles both use it, so openings are real. Sliders: hole open, squeeze tube, body deform, gravity tilt; side slice; counters (organ/tube/outside).
+Use it to replace the polyline stand-in in pony_ragdoll_lab.html: throat, stomach, intestine, exit become hollow channels cut (smooth-subtracted) from the pony node surface. Bag hierarchy = capacity per bag under one peritoneal limit, driving node scale. Limits of the proof: one bag, one opening (no exit), no volume bookkeeping, O(n^2) particle collisions.
+
+## Findings to remember
+- Legacy data: stray "}" (fixed), neck gap 0.10 (fixed), rear y -0.03 (kept), no ears/tail/mane.
+- Legacy math: positions use 2:1 projection (unit sphere -> 45.25 x 39.19 px) but radii drawn at 32 px => balls ~29% small. One camera must drive both.
+- Viewer axis mapping: three = (x, z, y). Mirrored vs right-handed on purpose (matches legacy). Keep.
+
+## Open decisions for the owner
+1. Inline three.js r128 (~600 KB) for offline use? (recommended: yes)
+2. Keep node positions in WORLD space for 2.0 (recommended) or switch to parent-local later.
+3. Keep rear y = -0.03 or center it.
+4. Where the editor lives: inside the game's Dev Kit shell (ST_SHELL_PROTOTYPE) vs standalone file first.
+
+## Bundle contents (ST3D_BUNDLE.zip)
+Also now included: ST_PROJECT_CONTEXT.md (project-level, read first for UI questions), ST_SHELL_PROTOTYPE.html, iso_asset_viewer.html.
+START_HERE.md, ST3D_SPEC.md, ST3D_HANDOFF.md, pony_blockout_v2.json, pony_geometry_rig_math.json (legacy source), st3d_viewport.html (STAGE 2 viewer, current), pony_2d_vs_3d.html (faceted viewer), pony_smooth_nodes.html (smooth blend), pony_ragdoll_lab.html (physics + cube transit), Stable-Tec_PassThrough_Proof.html (cavity/fluid proof). Not included: the game zip and Tools.zip (owner has them).
+
+## Status counts
+Tools in the new editor: 14 (corrected; Select, Move, Spawn, Copy, Delete, Snap, Mirror, Floor lock, Undo/Redo, JSON save/load). Viewer v0.4.0. Nodes 23 on load (22 spheres + 1 tube), +2 per hole. Game data unchanged: 13 items, 4 weapons, 2 armor, 0 clothing, 6 structures, 2 recipes, 8 tests (build 11).
+
+## Checkpoint log
+- 2026-10-05 v0.4.0: + Hole (cut nodes), Slice.
+- 2026-10-05 v0.3.1: muzzle removed, Rotate/Scale, view row, spray fix attempt.
+- 2026-10-05 Stage 3 built (v0.3.0). Owner approved Stage 2 and conservative UI expansion. Hub-vs-orbs question deferred to Gemini.
+- 2026-10-05 Stage 2 built: st3d_viewport.html v0.2.0 (see Where we are). Open decisions 2-4 kept at recommended defaults (world space, rear y -0.03, standalone file); decision 1 (inline three.js) moot for now.
+- 2026-10-05 (context ~90%) Bundled everything into ST3D_BUNDLE.zip; added cavity/fluid decision.
+- 2026-10-05 Added pony_ragdoll_lab.html (PBD ragdoll, grab/drop, cube transit) and the physics decision above.
+- 2026-10-05 Added smooth-blend demo (pony_smooth_nodes.html) and the 3-layer surface decision above.
+- 2026-10-05 Audited pony_geometry_rig_math.json; built side-by-side viewer; wrote ST3D_SPEC.md, pony_blockout_v2.json, this file.
+
+## UI direction (5 Oct 2026, NOTE ONLY)
+Owner wants a single movable "revolver hub" menu with branching wheels as the default UI. Full notes: ST_PROJECT_CONTEXT.md section 9. Not built. Applies to the game shell and eventually this editor's controls; do not add it to st3d_viewport.html until asked.
+
+## Rules for any AI taking over
+Read ST3D_SPEC.md sections 1, 2 and 9 before touching anything. One stage at a time. Patch, do not rewrite. Touch controls >= 44px. End every reply with version, one-line changelog, counts, status. If tokens may run out, update this file FIRST.
+- 2026-10-05 Chat crashed at ~90% context; wrote RESUME_NOTE.md, corrected counts, added Tools/ to bundle (ST3D_BUNDLE_3.zip).
+- 2026-10-05 v0.4.1: Attach/Detach/Link buttons; fixed stray ')' in cutPx (v0.4.0 script did not parse). Toolbar now 17 buttons incl. Undo/Redo.
+- 2026-10-05 v0.4.2: Pair button; Spawn/Copy/Delete mirror-aware; headless logic test passed.
+- 2026-10-05 v0.5.0: shell overlay (full-screen viewport, mode orb Live/Build, scrolling toolbar strip, gear sheet for sliders). See RESUME_NOTE.md.
+- 2026-10-05 Build overlay: EWS_with_Build.html embeds editor; editor now supports embedded mode (auto-Build, exit via mode orb, postMessage nodes, load message).
+- 2026-10-05 Ragdoll module (PBD) ported into EWS_with_Build.html; see RESUME_NOTE.md.
+- 2026-10-05 Ragdoll v2: world-space sim, static boxes (wall), cube prop. See RESUME_NOTE.md.
+- 2026-10-05 Final handoff: added body-movement/dynamic-motion plan and final state to RESUME_NOTE.md.

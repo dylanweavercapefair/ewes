@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""
+EWS ECHO Management Tool (EWS-ECHO/1)
+Evolution of GHOST into ECHO: The persistent heartbeat and collective memory of EWS.
+Maintains ECHO.md strictly under the 4,096-byte limit, synchronizes legacy GHOST.md,
+and manages session notes and health pulses.
+"""
+import sys
+import os
+import re
+from datetime import datetime
+
+CAP_BYTES = 4096
+
+def find_echo_paths():
+    candidates_echo = ['ECHO.md', '../ECHO.md', 'ew-sim/ECHO.md', '/mnt/agentdata/gcs/c_ccdcb08853c1cb2f/ECHO.md']
+    candidates_ghost = ['GHOST.md', '../GHOST.md', 'ew-sim/GHOST.md', '/mnt/agentdata/gcs/c_ccdcb08853c1cb2f/GHOST.md']
+    
+    echo_path = 'ECHO.md'
+    for p in candidates_echo:
+        if os.path.isfile(p):
+            echo_path = os.path.abspath(p)
+            break
+            
+    ghost_path = 'GHOST.md'
+    for p in candidates_ghost:
+        if os.path.isfile(p):
+            ghost_path = os.path.abspath(p)
+            break
+            
+    return echo_path, ghost_path
+
+def get_echo_content():
+    echo_path, ghost_path = find_echo_paths()
+    if os.path.isfile(echo_path):
+        with open(echo_path, 'r', encoding='utf-8') as f:
+            return f.read(), echo_path, ghost_path
+    elif os.path.isfile(ghost_path):
+        with open(ghost_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return content, echo_path, ghost_path
+    return None, echo_path, ghost_path
+
+def check_health():
+    content, echo_path, _ = get_echo_content()
+    if content is None:
+        print(f"ERROR: Neither ECHO.md nor GHOST.md found at {echo_path}")
+        return False
+    size = len(content.encode('utf-8'))
+    first_line = content.split('\n')[0] if content else ''
+    print(first_line)
+    pct = (size / CAP_BYTES) * 100
+    status = "OK" if size <= CAP_BYTES else "OVER_CAP"
+    print(f"ECHO Heartbeat size: {size}/{CAP_BYTES} bytes ({pct:.1f}%) [{status}]")
+    return size <= CAP_BYTES
+
+def add_note(note_text):
+    content, echo_path, ghost_path = get_echo_content()
+    if content is None:
+        print(f"ERROR: Cannot add note, root state file not found.")
+        return False
+
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    lines = content.split('\n')
+
+    if lines and lines[0].startswith('@state'):
+        lines[0] = re.sub(r'date=\d{4}-\d{2}-\d{2}', f'date={date_str}', lines[0])
+
+    log_idx = -1
+    for i, line in enumerate(lines):
+        if line.strip().startswith('## LOG'):
+            log_idx = i
+            break
+
+    note_line = f"- {date_str} {note_text}"
+    if log_idx != -1:
+        lines.insert(log_idx + 1, note_line)
+    else:
+        lines.append(f"## LOG\n{note_line}")
+
+    updated = '\n'.join(lines)
+    while len(updated.encode('utf-8')) > CAP_BYTES:
+        last_log = None
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip().startswith('- 202'):
+                last_log = i
+                break
+        if last_log and last_log > (log_idx + 3):
+            del lines[last_log]
+            updated = '\n'.join(lines)
+        else:
+            break
+
+    with open(echo_path, 'w', encoding='utf-8') as f:
+        f.write(updated)
+    if os.path.dirname(echo_path) == os.path.dirname(ghost_path):
+        with open(ghost_path, 'w', encoding='utf-8') as f:
+            f.write(updated)
+
+    print(f"ECHO Recorded: {note_line}")
+    check_health()
+    return True
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == 'note':
+        note = ' '.join(sys.argv[2:]) if len(sys.argv) > 2 else 'Pulse heartbeat update'
+        add_note(note)
+    else:
+        ok = check_health()
+        sys.exit(0 if ok else 1)

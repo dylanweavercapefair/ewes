@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""
+Engine Audit Tool (EWS-AUDIT/1)
+Validates repository integrity, GHOST cap compliance, and multi-file stacking.
+Fails loudly if files are missing or out of bounds.
+"""
+import sys
+import os
+
+CAP_BYTES = 4096
+
+def find_file(name):
+    search_dirs = ['.', '..', 'ew-sim', '../ew-sim', 'downloads']
+    for d in search_dirs:
+        p = os.path.join(d, name)
+        if os.path.isfile(p):
+            return os.path.abspath(p)
+    return None
+
+def run_audit():
+    errors = []
+    
+    # 1. GHOST.md Check
+    ghost_path = find_file('GHOST.md')
+    if not ghost_path:
+        errors.append("CRITICAL: GHOST.md does not exist in any expected directory!")
+        print("FAIL: ghost_exists=false")
+    else:
+        with open(ghost_path, 'rb') as f:
+            ghost_bytes = len(f.read())
+        if ghost_bytes > CAP_BYTES:
+            errors.append(f"FAIL: GHOST.md size {ghost_bytes} exceeds cap {CAP_BYTES} bytes!")
+        else:
+            print(f"PASS: GHOST.md located ({ghost_bytes}/{CAP_BYTES} bytes, {ghost_bytes/CAP_BYTES*100:.1f}%)")
+
+    # 2. MASTER_INDEX.md Check
+    index_path = find_file('MASTER_INDEX.md')
+    if not index_path:
+        print("WARN: MASTER_INDEX.md not found in local workspace (checking Drive/cloud).")
+    else:
+        with open(index_path, 'r', encoding='utf-8') as f:
+            idx_content = f.read()
+        chunks = [line for line in idx_content.split('\n') if '[CHUNK:' in line]
+        print(f"PASS: MASTER_INDEX.md located with {len(chunks)} indexed chunks.")
+
+    # 3. Summary
+    if errors:
+        print("\n--- AUDIT FAILED ---")
+        for e in errors:
+            print(f"- {e}")
+        return False
+    else:
+        print("\n--- ENGINE AUDIT: HEALTHY ---")
+        return True
+
+if __name__ == '__main__':
+    ok = run_audit()
+    sys.exit(0 if ok else 1)

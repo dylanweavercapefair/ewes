@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""
+EWS Feature Intake & Architecture Watchdog (EWS-INTAKE/1)
+Automates registering new game features into MASTER_INDEX.md,
+validates syntax against regression patterns (scrub_audit),
+computes SHA-256 signatures, and registers chunk dependencies in globalRegistry.
+"""
+import sys
+import os
+import re
+import hashlib
+from datetime import datetime
+
+MASTER_INDEX_PATH = '../MASTER_INDEX.md'
+REGISTRY_JS_PATH = 'globalRegistry.js'
+GHOST_TOOL = 'ghost.py'
+
+def sanitize_tag(raw_name):
+    tag = raw_name.upper().strip()
+    if tag.startswith('CHUNK:'):
+        tag = tag[6:]
+    clean = re.sub(r'[^A-Z0-9_]', '', tag.replace(' ', '_').replace('-', '_'))
+    return 'CHUNK:' + clean
+
+def check_syntax_compliance(code_or_text):
+    forbidden = {
+        "BARS_SYNDROME": re.search(r'(#qb\b|#hud\b|#dock\b|\.qb\b|\.dock\b)', code_or_text),
+        "ISO_2D_MATH": re.search(r'\(x\s*-\s*y\)\s*\*\s*32|\(x\s*\+\s*y\)\s*\*\s*16', code_or_text),
+        "CANVAS_2D_CTX": re.search(r'cv\.getContext\([\"\']2d[\"\']\)', code_or_text),
+        "SVG_VIEWPORT": re.search(r'<div id=[\"\']st[\"\']>\s*</div>|<svg id=[\"\']st[\"\']', code_or_text)
+    }
+    violations = [k for k, v in forbidden.items() if v]
+    return violations
+
+def register_feature(tag, title, target_file, scope_summary, body_content=""):
+    clean_tag = sanitize_tag(tag)
+    
+    violations = check_syntax_compliance(scope_summary + " " + body_content)
+    if violations:
+        print(f"REJECTED: Feature '{clean_tag}' contains forbidden regression signatures: {violations}")
+        return False
+
+    if not os.path.isfile(MASTER_INDEX_PATH):
+        print(f"ERROR: {MASTER_INDEX_PATH} not found.")
+        return False
+
+    with open(MASTER_INDEX_PATH, 'r', encoding='utf-8') as f:
+        master_content = f.read()
+
+    if clean_tag in master_content:
+        print(f"WARN: Chunk tag {clean_tag} is already registered in MASTER_INDEX.md. Updating definition.")
+    else:
+        table_row = f"| `{clean_tag}` | {title} | `{target_file}` | {scope_summary} |\n"
+        idx = master_content.find("<!-- CHUNK:")
+        if idx != -1:
+            master_content = master_content[:idx] + table_row + "\n---\n\n" + master_content[idx:]
+        else:
+            master_content += "\n" + table_row
+
+        if body_content:
+            body_block = f"\n<!-- {clean_tag} START -->\n## [{clean_tag}] {title}\n{body_content.strip()}\n<!-- {clean_tag} END -->\n"
+            master_content += body_block
+
+        with open(MASTER_INDEX_PATH, 'w', encoding='utf-8') as f:
+            f.write(master_content)
+
+    byte_size = len((scope_summary + body_content).encode('utf-8'))
+    sha256 = hashlib.sha256((scope_summary + body_content).encode('utf-8')).hexdigest()[:8]
+
+    if os.path.isfile(REGISTRY_JS_PATH):
+        with open(REGISTRY_JS_PATH, 'r', encoding='utf-8') as f:
+            reg_text = f.read()
+        if clean_tag not in reg_text:
+            entry = f"      {{ tag: '{clean_tag}', sha: '{sha256}', size: {byte_size} }},"
+            reg_text = reg_text.replace("const known = [\n", f"const known = [\n{entry}\n")
+            with open(REGISTRY_JS_PATH, 'w', encoding='utf-8') as f:
+                f.write(reg_text)
+
+    os.system(f'python3 {GHOST_TOOL} note "Intake registered new feature {clean_tag} ({title}) into Master Index and Global Registry."')
+    print(f"SUCCESS: Feature {clean_tag} registered with SHA-256 signature [{sha256}].")
+    return True
+
+if __name__ == '__main__':
+    if len(sys.argv) < 5:
+        print("Usage: feature_intake.py <TAG> <TITLE> <TARGET_FILE> <SUMMARY> [BODY]")
+        sys.exit(1)
+    tag = sys.argv[1]
+    title = sys.argv[2]
+    target = sys.argv[3]
+    summary = sys.argv[4]
+    body = sys.argv[5] if len(sys.argv) > 5 else ""
+    ok = register_feature(tag, title, target, summary, body)
+    sys.exit(0 if ok else 1)

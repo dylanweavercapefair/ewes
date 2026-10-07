@@ -1,0 +1,97 @@
+/**
+ * EWS Global Architecture & Content Registry (EWS-REGISTRY/1)
+ * Connects mods, content packages, and chunk tags to prevent orphaned code and unauthorized injections.
+ */
+
+export interface ChunkMetadata {
+  tag: string;
+  sha256: string;
+  byteSize: number;
+  lastUpdated: string;
+}
+
+export interface ContentPackage {
+  id: string;
+  name: string;
+  author: string;
+  version: string;
+  requiresChunks: string[];
+  enabled: boolean;
+  init: () => void;
+}
+
+export class GlobalRegistry {
+  private static instance: GlobalRegistry;
+  private packages: Map<string, ContentPackage> = new Map();
+  private verifiedChunks: Map<string, ChunkMetadata> = new Map();
+
+  private constructor() {
+    this.initDefaultChunks();
+  }
+
+  public static getInstance(): GlobalRegistry {
+    if (!GlobalRegistry.instance) {
+      GlobalRegistry.instance = new GlobalRegistry();
+    }
+    return GlobalRegistry.instance;
+  }
+
+  private initDefaultChunks() {
+    const known = [
+      { tag: 'CHUNK:3D_MESH_RIG', sha: '8049a23a', size: 918 },
+      { tag: 'CHUNK:SHELL_LAYERS', sha: 'e8e21484', size: 1097 },
+      { tag: 'CHUNK:SPHERE_RESPECT', sha: 'b8882e96', size: 893 },
+      { tag: 'CHUNK:ANATOMY_FLUIDS', sha: '36207c41', size: 1190 },
+      { tag: 'CHUNK:CONSUMABLE_TAX', sha: '5faae116', size: 561 },
+      { tag: 'CHUNK:CRASH_REDUNDANCY', sha: '65d3f003', size: 444 }
+    ];
+    for (const c of known) {
+      this.verifiedChunks.set(c.tag, {
+        tag: c.tag,
+        sha256: c.sha,
+        byteSize: c.size,
+        lastUpdated: '2026-10-05'
+      });
+    }
+  }
+
+  public registerPackage(pkg: ContentPackage): boolean {
+    // Validate that package doesn't duplicate existing IDs
+    if (this.packages.has(pkg.id)) {
+      console.warn(`[Registry] Package ${pkg.id} is already registered. Skipping duplicate.`);
+      return false;
+    }
+
+    // Verify required chunk architecture exists
+    for (const req of pkg.requiresChunks) {
+      if (!this.verifiedChunks.has(req)) {
+        console.error(`[Registry] Package ${pkg.id} requires missing chunk ${req}! Injection blocked.`);
+        return false;
+      }
+    }
+
+    this.packages.set(pkg.id, pkg);
+    if (pkg.enabled) {
+      try {
+        pkg.init();
+        console.log(`[Registry] Successfully activated package: ${pkg.name} (${pkg.id})`);
+      } catch (err) {
+        console.error(`[Registry] Error activating package ${pkg.id}:`, err);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  public getPackage(id: string): ContentPackage | undefined {
+    return this.packages.get(id);
+  }
+
+  public listPackages(): ContentPackage[] {
+    return Array.from(this.packages.values());
+  }
+
+  public hasChunk(tag: string): boolean {
+    return this.verifiedChunks.has(tag);
+  }
+}

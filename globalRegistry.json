@@ -1,0 +1,82 @@
+/**
+ * EWS Global Architecture & Content Registry (EWS-REGISTRY/1)
+ * Plain JS runtime singleton for Browser & Node environments.
+ */
+
+class GlobalRegistry {
+  constructor() {
+    this.packages = new Map();
+    this.verifiedChunks = new Map();
+    this.initDefaultChunks();
+  }
+
+  static getInstance() {
+    if (!GlobalRegistry.instance) {
+      GlobalRegistry.instance = new GlobalRegistry();
+    }
+    return GlobalRegistry.instance;
+  }
+
+  initDefaultChunks() {
+    const known = [
+      { tag: 'CHUNK:3D_MESH_RIG', sha: '8049a23a', size: 918 },
+      { tag: 'CHUNK:SHELL_LAYERS', sha: 'e8e21484', size: 1097 },
+      { tag: 'CHUNK:SPHERE_RESPECT', sha: 'b8882e96', size: 893 },
+      { tag: 'CHUNK:ANATOMY_FLUIDS', sha: '36207c41', size: 1190 },
+      { tag: 'CHUNK:CONSUMABLE_TAX', sha: '5faae116', size: 561 },
+      { tag: 'CHUNK:CRASH_REDUNDANCY', sha: '65d3f003', size: 444 }
+    ];
+    for (const c of known) {
+      this.verifiedChunks.set(c.tag, {
+        tag: c.tag,
+        sha256: c.sha,
+        byteSize: c.size,
+        lastUpdated: '2026-10-05'
+      });
+    }
+  }
+
+  registerPackage(pkg) {
+    if (this.packages.has(pkg.id)) {
+      console.warn(`[Registry] Package ${pkg.id} is already registered. Skipping duplicate.`);
+      return false;
+    }
+
+    if (Array.isArray(pkg.requiresChunks)) {
+      for (const req of pkg.requiresChunks) {
+        if (!this.verifiedChunks.has(req)) {
+          console.error(`[Registry] Package ${pkg.id} requires missing chunk ${req}! Injection blocked.`);
+          return false;
+        }
+      }
+    }
+
+    this.packages.set(pkg.id, pkg);
+    if (pkg.enabled && typeof pkg.init === 'function') {
+      try {
+        pkg.init();
+        console.log(`[Registry] Activated package: ${pkg.name} (${pkg.id})`);
+      } catch (err) {
+        console.error(`[Registry] Error activating package ${pkg.id}:`, err);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  getPackage(id) {
+    return this.packages.get(id);
+  }
+
+  listPackages() {
+    return Array.from(this.packages.values());
+  }
+
+  hasChunk(tag) {
+    return this.verifiedChunks.has(tag);
+  }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { GlobalRegistry };
+}

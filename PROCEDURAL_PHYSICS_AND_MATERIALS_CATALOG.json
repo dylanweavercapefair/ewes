@@ -1,0 +1,117 @@
+{
+  "schema": "ews.materials/1",
+  "version": "1.0.0",
+  "project": "Equestrian Wasteland Sim",
+  "author": "Dylan Weaver & Gemini Spark Assistant",
+  "timestamp": "2026-10-06T19:56:00Z",
+  "description": "Master mathematical physics constants, PBR optical parameters, procedural shader formulas, and biological fluid absorption mechanisms.",
+  
+  "optical_constants_ior": {
+    "water": 1.333,
+    "urine_saline": 1.336,
+    "amorphous_quartz_glass": 1.458,
+    "dry_wasteland_soil": 1.480,
+    "obsidian_volcanic_glass": 1.500,
+    "keratin_hoof_horn": 1.540,
+    "bone_hydroxyapatite": 1.550,
+    "chitin_insectoid": 1.560,
+    "vault_polyethylene_plastic": 1.510,
+    "cotton_cellulose_fiber": 1.530
+  },
+
+  "procedural_material_profiles": {
+    "cloth_cotton_denim": {
+      "type": "MeshPhysicalMaterial",
+      "roughness": 0.85,
+      "metalness": 0.0,
+      "sheen": 0.45,
+      "sheenRoughness": 0.50,
+      "sheenColor": "#dce8f5",
+      "procedural_weave_formula": "sin(u * 400.0) * cos(v * 400.0) * 0.04"
+    },
+    "cloth_velvet_suede": {
+      "type": "MeshPhysicalMaterial",
+      "roughness": 0.90,
+      "metalness": 0.0,
+      "sheen": 1.00,
+      "sheenRoughness": 0.25,
+      "sheenColor": "#ffffff",
+      "fresnel_grazing_power": 5.0
+    },
+    "earth_dry_soil": {
+      "type": "OrenNayarDiffuse",
+      "albedo_roughness": 0.92,
+      "retro_reflection_factor": 0.35,
+      "ior": 1.48
+    },
+    "earth_sedimentary_strata": {
+      "type": "ProceduralBands",
+      "strata_formula": "sin(y * 14.0 + perlin_noise(x, z) * 2.8)",
+      "roughness_base": 0.88,
+      "rock_layers": ["limestone", "shale", "clay", "granite"]
+    },
+    "metal_vault_steel": {
+      "type": "MeshStandardMaterial",
+      "roughness": 0.32,
+      "metalness": 0.92,
+      "color": "#4a5550"
+    },
+    "metal_postwar_brass": {
+      "type": "MeshStandardMaterial",
+      "roughness": 0.24,
+      "metalness": 0.88,
+      "color": "#c8a148"
+    },
+    "living_tissue_viscera": {
+      "type": "MeshPhysicalMaterial",
+      "roughness": 0.38,
+      "metalness": 0.05,
+      "transmission": 0.18,
+      "thickness": 0.35,
+      "attenuationColor": "#8a1c2e",
+      "attenuationDistance": 0.25,
+      "clearcoat": 0.65,
+      "clearcoatRoughness": 0.15
+    }
+  },
+
+  "diaper_absorption_and_swelling_physics": {
+    "socket_anchors": ["pelvis", "rear", "BL0", "BR0"],
+    "max_absorption_capacity_ml": 650.0,
+    "dry_core_mass_g": 38.0,
+    "hydrogel_superabsorbent_polymer": {
+      "chemical_type": "Sodium Polyacrylate cross-linked + Cellulose Fluff Pulp",
+      "free_swell_capacity_ratio": 45.0,
+      "swelling_efficiency_eta": 0.95,
+      "volumetric_expansion_formula": "V_core = V_dry + 0.95 * V_absorbed"
+    },
+    "morphological_deformation": {
+      "gravitational_sag_formula": "delta_y = -0.00012 * mass_absorbed_g",
+      "lateral_crotch_bulge_formula": "width = W_base * (1.0 + 0.48 * sqrt(V_absorbed / V_max))",
+      "maximum_sag_meters": 0.065,
+      "maximum_width_expansion": 1.45
+    },
+    "multi_layer_shader_composite": {
+      "canvas_resolution": [256, 256],
+      "layer_1_outer_sheet": "Breathable waterproof film, roughness 0.45, subtle specular highlight",
+      "layer_2_core_matrix": "Porous fibrous absorption grid",
+      "layer_3_wetness_indicator": {
+        "dry_color": "#fad165",
+        "wet_color": "#00b4d8",
+        "trigger_threshold_ml": 25.0
+      },
+      "leak_overflow_threshold_ratio": 1.0
+    }
+  },
+
+  "visceral_organ_bag_hydrostatic_coupling": {
+    "resting_capacity_liters": 65.0,
+    "dynamic_shrink_floor_liters": 45.0,
+    "maximum_distension_liters": 120.0,
+    "centroid_formula": "C_bag = 0.5 * (P_chest + P_rear)",
+    "ventral_distension_scale_formula": "scale_belly = 1.0 + max(0.0, (V_total - 65.0) / 100.0) * 0.40",
+    "slosh_momentum_decay_rate": 4.5,
+    "slosh_spring_stiffness": 55.0,
+    "inversion_regurgitation_dot_threshold": -0.40
+  }
+}

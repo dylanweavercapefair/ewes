@@ -1,0 +1,154 @@
+/**
+ * EWS Game Master Engine (EWS-GM/1)
+ * Central orchestrator for the simulation tick, weather/atmospheric states,
+ * procedural world chunk streaming, and zero-bar Revolver menu dispatching.
+ */
+
+class GameMaster {
+  constructor() {
+    this.version = "1.0.0";
+    this.simSpeed = 1;
+    this.isPaused = false;
+    this.timeOfDay = 43200; // 12:00:00 (seconds from midnight)
+    this.dayCount = 1;
+    this.eventListeners = new Map();
+
+    // 1. Atmospheric & Weather System
+    this.weather = {
+      current: 'clear', // 'clear' | 'fallout_rain' | 'ash_storm' | 'toxic_smog'
+      duration: 3600,
+      elapsed: 0,
+      types: {
+        clear: { name: 'Clear Sky', skyCol: 0x0c1410, lightCol: 0xfff4d6, intensity: 0.85, radRate: 0.0, fogDensity: 0.008 },
+        fallout_rain: { name: 'Radioactive Acid Rain', skyCol: 0x081c10, lightCol: 0x76ff66, intensity: 0.65, radRate: 1.5, fogDensity: 0.022 },
+        ash_storm: { name: 'Fallout Ash Storm', skyCol: 0x1a1612, lightCol: 0xd9b896, intensity: 0.45, radRate: 0.8, fogDensity: 0.035 },
+        toxic_smog: { name: 'Mustard Gas Smog', skyCol: 0x181a08, lightCol: 0xdbd84f, intensity: 0.50, radRate: 2.2, fogDensity: 0.040 }
+      }
+    };
+
+    // 2. Procedural World Chunk Generator (200x200 tiles in 16x16 sectors)
+    this.chunkGen = {
+      chunkSize: 16,
+      gridHalf: 100,
+      loadedChunks: new Map(),
+      
+      getChunkCoords(worldX, worldZ, tileSize = 0.5) {
+        const cx = Math.floor((worldX / tileSize + 100) / 16);
+        const cz = Math.floor((worldZ / tileSize + 100) / 16);
+        return { cx, cz };
+      },
+
+      generateChunk(cx, cz) {
+        const key = `${cx},${cz}`;
+        if (this.loadedChunks.has(key)) return this.loadedChunks.get(key);
+
+        const seed = Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453;
+        const rand = seed - Math.floor(seed);
+
+        const chunkData = {
+          cx, cz,
+          props: [],
+          hazards: [],
+          puddles: []
+        };
+
+        if (rand > 0.65) {
+          chunkData.props.push({
+            type: 'ruin_wall',
+            relX: (rand * 12) - 6,
+            relZ: ((rand * 7) % 12) - 6,
+            squareUnder: true
+          });
+        }
+        if (rand > 0.82) {
+          chunkData.puddles.push({
+            type: 'rad_puddle',
+            relX: (rand * 8) - 4,
+            relZ: (rand * 6) - 3,
+            depth: 0.4
+          });
+        }
+
+        this.loadedChunks.set(key, chunkData);
+        return chunkData;
+      }
+    };
+
+    // 3. Menu & Mode Orchestrator
+    this.menu = {
+      activeMode: 'live',
+      activeSheet: null,
+      revolverOpen: true
+    };
+  }
+
+  static getInstance() {
+    if (!GameMaster.instance) {
+      GameMaster.instance = new GameMaster();
+    }
+    return GameMaster.instance;
+  }
+
+  on(event, callback) {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, []);
+    }
+    this.eventListeners.get(event).push(callback);
+  }
+
+  emit(event, payload) {
+    if (this.eventListeners.has(event)) {
+      this.eventListeners.get(event).forEach(cb => {
+        try { cb(payload); } catch (err) { console.error(`[GM] Event error on ${event}:`, err); }
+      });
+    }
+  }
+
+  tick(dt = 0.016) {
+    if (this.isPaused) return;
+
+    const scaledDt = dt * this.simSpeed;
+    this.timeOfDay += scaledDt * 10;
+    if (this.timeOfDay >= 86400) {
+      this.timeOfDay -= 86400;
+      this.dayCount++;
+      this.emit('dayPassed', { day: this.dayCount });
+    }
+
+    this.weather.elapsed += scaledDt;
+    if (this.weather.elapsed >= this.weather.duration) {
+      this.cycleWeather();
+    }
+
+    this.emit('tick', {
+      timeOfDay: this.timeOfDay,
+      simSpeed: this.simSpeed,
+      weather: this.weather.current,
+      day: this.dayCount
+    });
+  }
+
+  setWeather(type) {
+    if (this.weather.types[type]) {
+      this.weather.current = type;
+      this.weather.elapsed = 0;
+      this.emit('weatherChange', { weather: type, info: this.weather.types[type] });
+    }
+  }
+
+  cycleWeather() {
+    const keys = Object.keys(this.weather.types);
+    const nextIdx = (keys.indexOf(this.weather.current) + 1) % keys.length;
+    this.setWeather(keys[nextIdx]);
+  }
+
+  getTimeFormatted() {
+    const h = Math.floor((this.timeOfDay / 3600) % 24).toString().padStart(2, '0');
+    const m = Math.floor((this.timeOfDay / 60) % 60).toString().padStart(2, '0');
+    return `${h}:${m}`;
+  }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { GameMaster };
+}
